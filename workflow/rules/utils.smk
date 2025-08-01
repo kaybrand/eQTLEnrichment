@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import subprocess
 
 MAX_MEM_MB = 250 * 1000  # 250GB
 
@@ -58,7 +59,34 @@ def process_biosample_tissue_maps_old():
     methods_config['GTExTissue_map'] = GTExTissue_maps
     methods_config['biosample_map'] = biosample_maps
 
+def validate_prediction_table(config):
+    try:
+        result = subprocess.run(
+            ["conda", "run", "-n", "eQTLEnv", "python",
+            'workflow/scripts/preprocessing/validate_prediction_formats.py',
+            config['predictionsTable'],
+            config['methodsTable']],
+            check=True,
+            capture_output=True,
+            text=True,  # Crucial for text output
+        )
+
+        print("Prediction Validation Alerts:")
+        print(result.stdout)
+        if len(result.stdout) < 2:
+            print("All prediction files look good!")
+
+        return os.path.join(os.path.dirname(config['predictionsTable']), "validated_" + os.path.basename(config['predictionsTable']))
+
+    except subprocess.CalledProcessError as e:
+        print(f"Script failed with error code {e.returncode}:")
+        print(e.stderr)
+        sys.exit(1)  # Exit with a non-zero code on failure
+
+
 def add_biosamples_and_files_to_config(methods_config, config):
+    print("Called add_biosamples_and_files_to_config")
+    print(f'config["predictionsTable"] is: {config["predictionsTable"]}')
     key = pd.read_csv(config["predictionsTable"], sep="\t").dropna(subset=["biosample"])
     methods_config = methods_config[methods_config["method"].isin(config["methods"])] # filter to relevant methods
     
@@ -82,10 +110,13 @@ def add_biosamples_and_files_to_config(methods_config, config):
     # Add new columns to `methods_config` using Pandas
     methods_config.loc[:, 'biosamples'] = samples # add samples to config
     methods_config.loc[:, 'predFiles'] = files 
+    print((methods_config.head()))
     
     return methods_config
 
 def process_biosample_tissue_maps(methods_config, config):
+    print("Called process_biosample_tissue_maps")
+    print(f'config["predictionsTable"] is: {config["predictionsTable"]}')
     key = pd.read_csv(config["predictionsTable"], sep="\t").dropna(subset=["biosample", "GTExTissue"])
     methods_config = methods_config[methods_config["method"].isin(config["methods"])]
 
@@ -110,6 +141,7 @@ def process_biosample_tissue_maps(methods_config, config):
 
     methods_config.loc[:, 'GTExTissue_map'] = GTExTissue_maps
     methods_config.loc[:, 'biosample_map'] = biosample_maps
+    print((methods_config.head()))
 
     return methods_config
 

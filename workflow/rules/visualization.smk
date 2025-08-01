@@ -53,7 +53,7 @@ def get_table_files(GTExTissue):
 rule plot_enrichment_recall_curve:
 	input:
 		colorPalette = os.path.join(config["outDir"], "plots", "colorPalette.tsv"),
-		enrichmentRecall_files = lambda wildcards: get_table_files(wildcards.GTExTissue)
+		enrichmentRecall_files = lambda wildcards: get_table_files(wildcards.GTExTissue),
 	params:
 		score_thresholds = [methods_config.loc[method_name, "threshold"] for method_name in config["methods"]],
 		methods = config["methods"]
@@ -154,9 +154,11 @@ rule plot_variants_per_tissue:
 rule plot_enrichment_heatmaps:
 	input:
 		enrichmentTable = os.path.join(config["outDir"], "{method}", "enrichmentTables", "enrichmentTable.0to30000Kb.tsv"),
-		enhancerSizes =  os.path.join(config["outDir"], "{method}", "intermediate", "basesPerEnhancerSet.tsv")
+		enhancerSizes =  os.path.join(config["outDir"], "{method}", "intermediate", "basesPerEnhancerSet.tsv"),
+		biosample_tissue_map = os.path.join(config["outDir"], "{method}", "intermediate", "GTExTissueBiosampleMap.tsv")
 	params:
-		p_threshold = config["thresholdPval"]
+		p_threshold = config["thresholdPval"],
+		metadata = config.get("metadataTable")
 	output:
 		outFile_combined =  os.path.join(config["outDir"], "plots", "enrichmentHeatmaps", "{method}.enrichmentHeatmap.withMetrics.pdf"),
 		outFile_alone = os.path.join(config["outDir"], "plots", "enrichmentHeatmaps", "{method}.enrichmentHeatmap.pdf")

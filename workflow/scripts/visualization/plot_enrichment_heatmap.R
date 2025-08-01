@@ -14,6 +14,9 @@ main <- function() {
 	p_threshold = snakemake@params$p_threshold %>% as.numeric()
 	outFile_combined = snakemake@output$outFile_combined
 	outFile_solo = snakemake@output$outFile_alone
+	metadata_file = snakemake@params@metadata
+	biosample_tissue_map = snakemake@param@biosample_tissue_map
+	highlight_pairs = TRUE
 
 	enr = fread(enrTableFile, sep="\t", header=TRUE)
 	enr = dplyr::filter(enr, nVariantsGTExTissue>20, is.finite(enrichment))
@@ -24,53 +27,133 @@ main <- function() {
     # add base pairs per biosample
 	enr = left_join(enr, enhSizes, by="Biosample")
 	enr$enhMb = enr$enhBp/1e6
+
+	# Add experiemental data source to enrichment table
+	if (file.exists(metadata_file)) {
+		metadata = fread(metadata_file, sep=',', header=TRUE, select = c('folder_name', 'Dataset', 'SampleSummaryShort'))
+		enr <- left_join(enr,
+			metadata,
+			by = c("Biosample" = "folder_name"),
+			relationship = "many-to-one"
+    	)
+	}
 	
     # cluster to get orders
     M = dplyr::select(enr, Biosample, GTExTissue, enrichment) %>% distinct() %>%
 		pivot_wider(names_from=GTExTissue, values_from = enrichment) %>% column_to_rownames("Biosample") %>% drop_na()
 	M[is.na(M)] <- 0
+
+	# Get clustered tissue order
 	tissue_dist <- dist(1-cor(M))
 	tissue_dist[is.na(tissue_dist)] <- 0
 	order_tissues =  hclust(tissue_dist, method = "ward.D2")$order
 
+	# Get base biosample distance (disssimilarity of clusters) matrix
 	biosample_dist <- dist(1-cor(t(M)))
 	biosample_dist[is.na(biosample_dist)] <- 0
-	order_biosamples = hclust(biosample_dist, method = "ward.D2")$order
+	biosample_dist_matrix <- as.matrix(biosample_dist) # Convert to a matrix for easier manipulation
 
+	if ("Dataset" %in% colnames(enr)) {
+		# Keep clusters from the same experiment close to each other.  Loop through each unique experiment 
+		for (experiment in unique(enr$Dataset)) {
+		# Get the biosamples belonging to the current experiment
+		biosamples_in_experiment <- enr$Biosample[enr$Dataset == experiment]
+
+		# Loop through all pairs of biosamples within the experiment
+		for (i in 1:length(biosamples_in_experiment)) {
+			for (j in (i+1):length(biosamples_in_experiment)) {
+			# Get the biosample names
+			biosample1 <- rownames(biosample_dist_matrix)[rownames(biosample_dist_matrix) %in% biosamples_in_experiment[i]]
+			biosample2 <- rownames(biosample_dist_matrix)[rownames(biosample_dist_matrix) %in% biosamples_in_experiment[j]]
+
+			# Reduce the distance between these biosamples.  The amount of reduction
+			# can be adjusted.  A value of 0 would force them to be clustered
+			# perfectly together.  0.5 halves the distance between them.
+			biosample_dist_matrix[biosample1, biosample2] <- biosample_dist_matrix[biosample1, biosample2] * distance_reduction_factor
+			biosample_dist_matrix[biosample2, biosample1] <- biosample_dist_matrix[biosample2, biosample1] * distance_reduction_factor # Ensure symmetry
+			}
+		}
+		}
+
+		# Convert the modified distance matrix back to a dist object
+		constrained_biosample_dist <- as.dist(biosample_dist_matrix)
+
+		#  Perform hierarchical clustering on the modified distance matrix
+		order_biosamples = hclust(constrained_biosample_dist, method = "ward.D2")$order
+	} else {
+		order_biosamples = hclust(biosample_dist, method = "ward.D2")$order
+	}
+	# Turn the GTExTissue and Biosample columns into ordered categorical data
 	enr$Biosample = factor(enr$Biosample, levels=rownames(M)[order_biosamples], ordered=TRUE)
 	enr$GTExTissue = factor(enr$GTExTissue, levels=colnames(M)[order_tissues], ordered=TRUE)
 
 	# set plotting params
-    #colors = c("#c5373d", "#f7f7f7", "#006eae") # red-white-blue
-	colors = c("#f6eff7","#bdc9e1", "#67a9cf","#1c9099", "#016c59")
+	colors = c("#132b44","#154159","#18586b","#226f7a","#368785","#509f8e","#70b694","#95cd9a","#bee2a1","#ebf6ac") # dark blue to white yellow
 	na_color = "#ffffff"
+
+    # Define biosample-tissue pairs to highlight
+    biosample_tissue_map <- fread(biosample_tissue_file, sep='\t', header=TRUE)
+    colnames(biosample_tissue_map) = c("Biosample", "GTExTissue") 
+	# Create a data frame for the rectangles
+    if (highlight_pairs) {
+        rect_data <- biosample_tissue_map %>%
+        left_join(
+            data.frame(GTExTissue = levels(enr$GTExTissue), x = 1:length(levels(enr$GTExTissue))), # Get x positions
+            by = "GTExTissue"
+        ) %>%
+        left_join(
+            data.frame(Biosample = levels(enr$Biosample), y = 1:length(levels(enr$Biosample))), # Get y positions
+            by = "Biosample"
+        ) %>%
+        mutate(
+            xmin = x - 0.5,  # Adjust to center the rectangle on the cell
+            xmax = x + 0.5,
+            ymin = y - 0.5,
+            ymax = y + 0.5
+        )
+    }
 
 	# find max enrichment
 	enr_lim <- dplyr::filter(enr, p_adjust_enr < p_threshold, nVariantsOverlappingEnhancers / nVariantsGTExTissue > 0.01)
-	max_value <- round(quantile(enr_lim$enrichment, 0.9), 1)
-	max_value <- max(2, max_value)
-	#max_value = round(quantile(enr$enrichment, 0.9), 1) # 90th percentile enrichment
+	max_value <- round(quantile(enr_lim$enrichment, 0.99), 1)
+	max_value <- max(1, max_value)
 	lims = c(0, max_value) 
 	ht = ifelse(length(rownames(M))>50, 16, 8) 
 
-	# mark intersections with significant enrichments
-	enr = mutate(enr, label = ifelse(p_adjust_enr<p_threshold, "*", ""))
+	# # mark intersections with significant enrichments
+	# enr = mutate(enr, label = ifelse(p_adjust_enr<p_threshold, "*", ""))
 
     # heat map alone
 	just_enr = ggplot(enr, aes(x=GTExTissue, y=Biosample, fill=enrichment)) + 
 		geom_tile() +
-		geom_text(aes(label = label), size=6, color = na_color) + # remove stars, too much significance
+		# geom_text(aes(label = label), size=6, color = na_color) + # remove stars, too much significance
 		scale_fill_gradientn(colors=colors, oob=scales::squish, na.value=na_color, limits=lims, name="Enrichment") +
 		theme_minimal() + theme(axis.text = element_text(size = 7), axis.title = element_blank(), axis.text.x = element_text(angle=60, hjust=1),
-			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7))
+			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7)) +
+        # Add black boxes around biosample-tissue pairs
+		geom_rect(data = rect_data,
+              aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+              color = "black",  # Customize the border color
+              fill = NA,       # Make the rectangle transparent
+              linewidth = 1)      # Customize the border thickness
+
 		
 	# plots for grid
 	enr_grid  = ggplot(enr, aes(x=GTExTissue, y=Biosample, fill=enrichment)) + 
 		geom_tile() +
-		geom_text(aes(label = label), size=6, color = na_color) +
+		# geom_text(aes(label = label), size=6, color = na_color) +
 		scale_fill_gradientn(colors=colors, oob=scales::squish, na.value=na_color, limits=lims, name="Enrichment") +
 		theme_classic() + theme(axis.text = element_text(size = 7), axis.title = element_blank(), axis.text.x = element_blank(),
 			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7))
+	if (highlight_pairs) {
+		# Add black boxes around biosample-tissue pairs
+        enr_grid = enr_grid +
+        geom_rect(data = rect_data,
+              aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+              color = "black",  # Customize the border color
+              fill = NA,       # Make the rectangle transparent
+              linewidth = 1)      # Customize the border thickness
+    }
 
 	nVar = dplyr::select(enr, GTExTissue, nVariantsGTExTissue) %>% distinct()
 	var_count = ggplot(nVar, aes(x=GTExTissue, y=nVariantsGTExTissue)) +

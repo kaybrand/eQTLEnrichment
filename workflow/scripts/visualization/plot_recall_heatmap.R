@@ -30,11 +30,17 @@ main <- function() {
 	# input data
 	recallTableFile = snakemake@input$recallTable # by distance
 	enhSizeFile = snakemake@input$enhancerSizes # per method; biosample / base pairs
-	p_threshold = snakemake@params$p_threshold %>% as.numeric()
+	#p_threshold = snakemake@params$p_threshold %>% as.numeric()
 	outFile_combined = snakemake@output$outFile_combined
 	outFile_solo = snakemake@output$outFile_alone
 
-	recall = fread(recallTableFile, sep="\t", header=TRUE)
+# 	if (grepl("ArchR", enhSizeFile)) {
+#     file_name <- paste0("heatmap_ArchR", ".RData")
+#     save.image(file = file_name)
+#     quit(save = 'yes')
+# 	}
+
+	recall = data.table::fread(recallTableFile, sep="\t", header=TRUE)
 	recall = dplyr::filter(recall, distance_min == 0, distance_max==30000,
 		is.finite(recall.linking), !is.na(recall.linking), total.variants>20)
 	# remove tissues where sd recall = 0

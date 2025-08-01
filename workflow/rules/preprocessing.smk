@@ -1,5 +1,18 @@
 # sort enhancer predictions by chromosome & start location & filter to gene universe, invert scores if necessary
 # return file with (1-3) loc, (4) biosample, (5) TargetGene, (6) score (no header)
+
+# rule validate_predictions:
+#     input:
+#         config['predictionsTable']
+#     output:
+#         os.path.join(os.path.dirname(config['predictionsTable']), "validated_" + os.path.basename(config['predictionsTable']))
+#     conda:
+#         os.path.join(config["envDir"], "eQTLEnv.yml")
+#     shell:
+#         """
+#         python workflow/scripts/preprocessing/validate_prediction_formats.py {input}
+#         """
+
 rule process_predictions:
     input:
         predFile = lambda wildcards: methods_config.loc[wildcards.method, "predFiles"][wildcards.biosample],
@@ -23,14 +36,13 @@ rule process_predictions:
         # sort predictions file: remove # from header,select columns,remove header, remove rows with blanks
         if [[ {input.predFile} == *.gz ]]
         then
-            zcat {input.predFile} | awk 'NR==1{{sub(/^#*/, "")}}1' | csvtk cut -t -f chr,start,end,TargetGene,{params.scoreCol} | sed 1d | awk 'NF==5{{print}}{{}}' | bedtools sort -i stdin -faidx {params.chrSizes} > {output.predictionsSorted_temp}
+            zcat {input.predFile} | awk '!/^#/' | csvtk cut -t -f ElementChr,ElementStart,ElementEnd,GeneSymbol,{params.scoreCol} | sed 1d | awk 'NF==5{{print}}{{}}' | bedtools sort -i stdin -faidx {params.chrSizes} > {output.predictionsSorted_temp}
         else
-            cat {input.predFile} | awk 'NR==1{{sub(/^#*/, "")}}1' | csvtk cut -t -f chr,start,end,TargetGene,{params.scoreCol} | sed 1d | awk 'NF==5{{print}}{{}}' | bedtools sort -i stdin -faidx {params.chrSizes} > {output.predictionsSorted_temp}
+            cat {input.predFile} | awk '!/^#/' | csvtk cut -t -f ElementChr,ElementStart,ElementEnd,GeneSymbol,{params.scoreCol} | sed 1d | awk 'NF==5{{print}}{{}}' | bedtools sort -i stdin -faidx {params.chrSizes} > {output.predictionsSorted_temp}
         fi
 
         # invert score if inverted predictor and filter to gene universe and set biosample column
-        Rscript {params.codeDir}/preprocessing/process_predictions.R --input {output.predictionsSorted_temp}  --genes {input.geneUniverse} --biosample {wildcards.biosample} --invert {params.inversePred}  | gzip > {output.predictionsSorted}
-            
+        Rscript {params.codeDir}/preprocessing/process_predictions.R --input {output.predictionsSorted_temp}  --genes {input.geneUniverse} --biosample {wildcards.biosample} --invert {params.inversePred}  | gzip > {output.predictionsSorted}   
         """
 
 # filter eQTLs by PIP and to distal noncoding; filter common variants to distal noncoding

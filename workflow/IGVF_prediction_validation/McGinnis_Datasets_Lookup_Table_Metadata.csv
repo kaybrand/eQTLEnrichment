@@ -1,0 +1,46 @@
+﻿folder_name,SampleSummaryShort,SampleTermName,SampleTermID,dataset
+K562-CRISPRi,K562 expressing dCas9-KRAB,K562,EFO:0002067,CharacterizationMcGinnis_Dataset10
+THP1,THP1,THP1,EFO:0001253,CharacterizationMcGinnis_Dataset10
+Jurkat,Jurkat,Jurkat,EFO:0002796,CharacterizationMcGinnis_Dataset10
+Jurkat_Stim,Jurkat (stimulated),Jurkat,EFO:0002796,CharacterizationMcGinnis_Dataset10
+TeloHAEC-CRISPRi,TeloHAEC expressing dCas9-KRAB,TeloHAEC,CVCL_Z065,CharacterizationMcGinnis_Dataset10
+U2OS,U2OS,U2OS,EFO:0002869,CharacterizationMcGinnis_Dataset1
+HAP1,HAP1,HAP1,EFO:0007598,CharacterizationMcGinnis_Dataset1
+HL60,HL60,HL60,EFO:0002793,CharacterizationMcGinnis_Dataset1
+K562,K562,K562,EFO:0002067,CharacterizationMcGinnis_Dataset1
+HUDEP2,HUDEP2,HUDEP2,EFO:0022838,CharacterizationMcGinnis_Dataset1
+teloHAEC-0hr,TeloHAEC,TeloHAEC,CVCL_Z065,CharacterizationMcGinnis_Dataset2
+teloHAEC-4hr,TeloHAEC (TNFa for 4hr),TeloHAEC,CVCL_Z065,CharacterizationMcGinnis_Dataset2
+teloHAEC-24hr,TeloHAEC (TNFa for 24hr),TeloHAEC,CVCL_Z065,CharacterizationMcGinnis_Dataset2
+imac_cholesterol,WTC11-derived macrophage (cholesterol-loaded),WTC11,EFO_0009747,CharacterizationMcGinnis_Dataset4
+imac_m1,WTC11-derived macrophage (M1),WTC11,EFO_0009747,CharacterizationMcGinnis_Dataset4
+imac_m2,WTC11-derived macrophage (M2),WTC11,EFO_0009747,CharacterizationMcGinnis_Dataset4
+imac_precursor,WTC11-derived macrophage (precursor),WTC11,EFO_0009747,CharacterizationMcGinnis_Dataset4
+imac_unstim,WTC11-derived macrophage (unstimulated),WTC11,EFO_0009747,CharacterizationMcGinnis_Dataset4
+D0,Differentiated B cell (D0),B cell,,CharacterizationMcGinnis_Dataset9
+D1,Differentiated B cell (D1),B cell,CL_0000236,CharacterizationMcGinnis_Dataset9
+D2,Differentiated B cell (D2),B cell,CL_0000236,CharacterizationMcGinnis_Dataset9
+D3,Differentiated B cell (D3),B cell,CL_0000236,CharacterizationMcGinnis_Dataset9
+D5,Differentiated B cell (D5),B cell,CL_0000236,CharacterizationMcGinnis_Dataset9
+D6,Differentiated B cell (D6),B cell,CL_0000236,CharacterizationMcGinnis_Dataset9
+gastruloid,H1 gastruloids ,H1,EFO_0003042,CharacterizationMcGinnis_Dataset5
+neuron_ngn2,NGN2-induced iPSC-derived neuron,WTC11,EFO_0009747,CharacterizationMcGinnis_Dataset5
+neuron_hon_D6,H9 hESC-derived neural cell (D6),H9,EFO_0003045,CharacterizationMcGinnis_Dataset5
+neuron_hon_D11,H9 hESC-derived neural cell (D11),H9,EFO_0003045,CharacterizationMcGinnis_Dataset5
+neuron_hon_D20,H9 hESC-derived neural cell (D20),H9,EFO_0003045,CharacterizationMcGinnis_Dataset5
+hek293t,HEK293T,HEK293T,EFO:0001082,CharacterizationMcGinnis_Dataset5
+S1,H1 hESC-derived definitive endoderm (S1),H1,EFO_0003042,CharacterizationMcGinnis_Dataset6
+S3,H1 hESC-derived pancreatic progenitor 1 (S3),H1,EFO_0003042,CharacterizationMcGinnis_Dataset6
+S4,H1 hESC-derived pancreatic progenitor 2 (S4),H1,EFO_0003042,CharacterizationMcGinnis_Dataset6
+S5_2D,"H1 hESC-derived endocrine (S5, 2D)",H1,EFO_0003042,CharacterizationMcGinnis_Dataset6
+S5_2D3D,"H1 hESC-derived endocrine (S5, 2D3D)",H1,EFO_0003042,CharacterizationMcGinnis_Dataset6
+S6_2D,"H1 hESC-derived SC-beta cell (S6, 2D)",H1,EFO_0003042,CharacterizationMcGinnis_Dataset6
+S6_2D3D,"H1 hESC-derived SC-beta cell (S6, 2D3D)",H1,EFO_0003042,CharacterizationMcGinnis_Dataset6
+DMEM_noserum,"hCASM (DMEM, no serum)",hCASM,,CharacterizationMcGinnis_Dataset7 
+SMBM_noserum,"hCASM (SMBM, no serum)",hCASM,,CharacterizationMcGinnis_Dataset7 
+SMBM_serum,"hCASM (SMBM, serum)",hCASM,,CharacterizationMcGinnis_Dataset7
+calcification_d10,hCASM calcification (D10),hCASM,,CharacterizationMcGinnis_Dataset7
+calcification_d6,hCASM calcification (D6),hCASM,,CharacterizationMcGinnis_Dataset7
+K562_multiome,K562,K562,EFO:0002067,K562_ERR9847049_Multiome
+GM12878,GM12878,GM12878,EFO:0002784,GM12878_10XMultiome 
+GM12878_10XMultiome,GM12878,GM12878,EFO:0002784,GM12878_10XMultiome

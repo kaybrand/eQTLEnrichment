@@ -9,14 +9,24 @@ conda: "mamba"
 config["outDir"] = os.path.join(config["baseDir"], config["outDir"])
 config["codeDir"] = os.path.join(config["baseDir"], "workflow", "scripts")
 config["envDir"] = os.path.join(config["baseDir"], "workflow", "envs")
+config["scratchDir"] = os.path.join(config["scratchDir"], "Predictions")
+config['validatedPredictionsTable'] = os.path.join(os.path.dirname(config['predictionsTable']), "validated_" + os.path.basename(config['predictionsTable']))
 
 # read in prediction method config file
 methods_config_file = config["methodsTable"]
 methods_config = pd.read_table(methods_config_file, na_values="").fillna("None").set_index("method", drop=False)
-methods_config['threshold'] = [-thresh if inverse else thresh for thresh,inverse in zip(methods_config['threshold'], methods_config['inverse_predictor'])]
+#print(pd.concat([methods_config['threshold'], methods_config['inverse_predictor']], axis=1))
+methods_config['threshold'] = [(-1)*float(thresh) if inverse else thresh 
+                                for thresh,inverse in zip(methods_config['threshold'], methods_config['inverse_predictor'])
+                                ]
 
 # import workflows
 include: "./rules/utils.smk"
+# Remove paths to incorrectly formatted prediction files
+# print(f"Prediction table was {config['predictionsTable']}")
+# validate_prediction_table(config)
+# print(f"Prediction table is now {config['validatedPredictionsTable']}")
+# Add biosample paths to method config
 methods_config = add_biosamples_and_files_to_config(methods_config, config)
 methods_config = process_biosample_tissue_maps(methods_config, config)
 

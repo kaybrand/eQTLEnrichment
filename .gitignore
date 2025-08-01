@@ -9,6 +9,7 @@
 .Ruserdata
 config/mine/
 results/
+RData/
 
 # Example code in package build process
 *-Ex.R
@@ -39,3 +40,8 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+.snakemake/
+tempData/
+config/discard/
+config/reference/
