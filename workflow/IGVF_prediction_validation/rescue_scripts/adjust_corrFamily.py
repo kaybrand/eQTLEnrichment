@@ -6,10 +6,13 @@ Kayla Brand
 """
 import gzip
 import os
+from pathlib import Path
 import sys
 import pandas as pd
-import numpy as np
+# import numpy as np
 import re
+import argparse
+import datetime
 
 def add_absolute_suffix(input_file_path):
     # Get the directory and base filename
@@ -26,7 +29,7 @@ def add_absolute_suffix(input_file_path):
     else:
         raise ValueError(f"Unexpected file name: {base_name}")
 
-def take_absolute_value_of_corr(input_file_path, output_file_path, score_col="Score"):
+def take_absolute_value_of_corr(input_file_path, output_file_path, corr_score_col="Score", abs_score_col="abs_Score"):
     """
     Process a gzipped TSV file to:
     1. Extract and preserve comment lines (starting with #) as key-value pairs
@@ -44,11 +47,8 @@ def take_absolute_value_of_corr(input_file_path, output_file_path, score_col="Sc
     if not os.path.isfile(input_file_path):
         raise FileNotFoundError(f"No such file {input_file_path}")
 
-    # Generate new file name
-    # output_file_path = add_absolute_suffix(input_file_path)
-
-    # If this file was already produced, exit
-    if os.path.exists(output_file_path):
+    # If this file was already produced and was modified more recently than the input, exit
+    if os.path.exists(output_file_path) and (os.path.getmtime(output_file_path) > os.path.getmtime(input_file_path)):
         print(f"ALREADY EXISTS: {output_file_path}")
         return output_file_path
     
@@ -89,10 +89,11 @@ def take_absolute_value_of_corr(input_file_path, output_file_path, score_col="Sc
                      header=0)
     
     # Take absolute value of Score column
-    if score_col in df.columns:
-        df['abs_Score'] = df[score_col].abs()
+    if corr_score_col in df.columns:
+        df[abs_score_col] = df[corr_score_col].abs()
+        print(f"Saved the absolute value of the correlation score as the {abs_score_col} column")
     else:
-        raise ValueError(f"Error: {score_col} column not found in the data")
+        raise ValueError(f"Error: {corr_score_col} column not found in the data")
     
     # Write out the processed file
     with gzip.open(output_file_path, 'wt') as f:
@@ -105,18 +106,19 @@ def take_absolute_value_of_corr(input_file_path, output_file_path, score_col="Sc
     
     return output_file_path
 
-def main(input_file, output_file, score_col):
-    print(f"Taking absolute value of correlation in {score_col} column: {input_file}")
-    take_absolute_value_of_corr(input_file, output_file, score_col)
+def main(input_file, output_file, corr_score_col, abs_score_col):
+    print(f"Taking absolute value of correlation in {corr_score_col} column: {input_file}")
+    take_absolute_value_of_corr(input_file, output_file, corr_score_col, abs_score_col)
     print(f"Find updated file at: {output_file}")
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python script.py <input_file.tsv.gz> <output_path>")
-        sys.exit(1)
+if __name__ == "__main__":  
+    parser = argparse.ArgumentParser(description = "Adjust a correlation score prediction file for eQTL pipeline")
+    parser.add_argument("input_file", help="path to prediction file")
+    parser.add_argument("output_file", help="path to be given to output file")
+    parser.add_argument("-s", "--source-score-col", action='store', dest='source_col', help="column to take absolute value of")
+    parser.add_argument("-t", "--target-score-col", action='store', dest='target_col', help='name of column to be created')
+    args = parser.parse_args()
 
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
-    score_col = 'Score'
-    main(input_file, output_file, score_col)
+    # Pull file paths from Namespace
+    main(args.input_file, args.output_file, args.source_col, args.target_col)
     

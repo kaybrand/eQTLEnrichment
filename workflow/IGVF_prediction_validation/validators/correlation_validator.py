@@ -6,10 +6,21 @@ from .base import BaseValidator
 
 logger = logging.getLogger(__name__)
 
+# Define paths at the module level for reliability
+THIS_SCRIPT_DIR = Path(__file__).resolve().parent
+RESCUE_SCRIPTS_DIR = THIS_SCRIPT_DIR.parent / 'rescue_scripts'
+
 class AbsCorrelationValidator(BaseValidator):
-    def __init__(self):
-        self.score_col_name = "abs_Score"
-        self.original_score_col = "Score" # The column we read from to create abs_Score
+    def __init__(self, score_col_name = "abs_Score", original_score_col = "Score"):
+        """
+        Args:
+            score_col_name (str): The name of the TARGET column (e.g., 'abs_Score').
+            original_score_col (str | None): The name of the SOURCE column to read from
+                                             during rescue (e.g., 'Score'). If None,
+                                             defaults to 'Score'.
+        """
+        self.score_col_name = score_col_name
+        self.original_score_col = original_score_col # The column we read from to create abs_Score
 
     def is_score_valid(self, file_path: Path, check_all_rows: bool = False) -> bool:
         """
@@ -53,7 +64,6 @@ class AbsCorrelationValidator(BaseValidator):
 
     def rescue(self, file_path: Path) -> Path | None:
         """Calls an external script to take the absolute value of the 'Score' column."""
-        # This keeps the new file in the same directory as the old one.
         if file_path.name.endswith('.e2g.tsv.gz'):
             output_filename = file_path.name.replace('.e2g.tsv.gz', '_absolute.e2g.tsv.gz')
             output_path = file_path.with_name(output_filename)
@@ -61,17 +71,19 @@ class AbsCorrelationValidator(BaseValidator):
             logger.error(f"Cannot rescue: Input file must end with '.e2g.tsv.gz', got: {file_path.name}")
             return None
 
-        # Best practice: ensure the path to the script is reliable.
-        # This could be made configurable later if needed.
-        rescue_script_path = "workflow/IGVF_prediction_validation/adjust_corrFamily.py"
+        # Construct the full, absolute path to the rescue script.
+        rescue_script_path = RESCUE_SCRIPTS_DIR / 'adjust_corrFamily.py'
+        if not rescue_script_path.is_file():
+            logger.error(f"Rescue script not found at the expected path: {rescue_script_path}")
+            return None
 
         command = [
             "python", rescue_script_path,
-            "--input", str(file_path),
-            "--output", str(output_path),
-            "--source-col", self.original_score_col,
-            "--target-col", self.score_col_name
-        ] # NEED TO REVISE THIS SCRIPT TO ADD A COLUMN AND ACCEPT THESE PARAMETERS
+            str(file_path),
+            str(output_path),
+            "--source-score-col", self.original_score_col,
+            "--target-score-col", self.score_col_name
+        ]
         
         try:
             result = subprocess.run(command, check=True, capture_output=True, text=True)

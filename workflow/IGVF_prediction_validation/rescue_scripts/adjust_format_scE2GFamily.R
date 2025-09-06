@@ -11,16 +11,16 @@ option_list = list(
               help = "Path to transcripts input file", metavar = "character"),
   make_option(c("-o", "--output_file"), type = "character", default = NULL,
               help = "Path to output file", metavar = "character"),
-  make_option(c("-c", "--cell_type"), type = "character", default = NULL,
-              help = "Cell type", metavar = "character"),
-  make_option(c("-d", "--term_id"), type = "character", default = NULL,
-              help = "IGVF Sample Term ID", metavar = "character"),
-  make_option(c("-s", "--summary"), type = "character", default = NULL,
-              help = "Short description of the sample including treatments", metavar = "character"),
-  make_option(c("-m", "--method"), type = "character", default = "scE2G",
-              help = "E2G method that produced the predictions", metavar = "character"),
-  make_option(c("-v", "--version"), type = "character", default = NULL,
-              help = "E2G method version", metavar = "character"),
+  # make_option(c("-c", "--cell_type"), type = "character", default = NULL,
+  #             help = "Cell type", metavar = "character"),
+  # make_option(c("-d", "--term_id"), type = "character", default = NULL,
+  #             help = "IGVF Sample Term ID", metavar = "character"),
+  # make_option(c("-s", "--summary"), type = "character", default = NULL,
+  #             help = "Short description of the sample including treatments", metavar = "character"),
+  # make_option(c("-m", "--method"), type = "character", default = "scE2G",
+  #             help = "E2G method that produced the predictions", metavar = "character"),
+  # make_option(c("-v", "--version"), type = "character", default = NULL,
+  #             help = "E2G method version", metavar = "character"),
   make_option(c("--threshold"), type = "character", default = NULL,
               help = "Used score threshold if applicable", metavar = "character"), 
   make_option(c("-l", "--portal_link"), type = "character", default = NULL,
@@ -42,7 +42,7 @@ check_required_args <- function(arg, opt, opt_parser) {
 }
 
 # check that all required parameters are provided
-required_args <- c("input_file", "output_file", "cell_type", "method", "version")
+required_args <- c("input_file", "output_file")
 for (i in required_args) {
   check_required_args(i, opt = opt, opt_parser = opt_parser)
 }
@@ -69,14 +69,15 @@ if (!is.null(opt$summary)) {
 # create header lines
 header <- c(
   paste("# Source:", opt$method),
-  paste("# Version:", opt$version),
+  # paste("# Version:", opt$version),
   "# GenomeBuild: GRCh38",
   "# URL: https://github.com/EngreitzLab/scE2G/tree/main",
   "# Assays: 10x Multiome",
-  "# SampleAgnostic: False",
-  paste("# SampleTermName:", unique(pred$CellType)),
-  paste("# SampleTermID:", opt$term_id),
-  paste("# SampleSummaryShort:", opt$summary)
+  "# SampleAgnostic: False"
+
+  # paste("# SampleTermName:", unique(pred$CellType)),
+  # paste("# SampleTermID:", opt$term_id),
+  # paste("# SampleSummaryShort:", opt$summary)
 )
 
 # add threshold if applicable
@@ -97,9 +98,9 @@ if (!is.null(opt$portal_link)) {
 # add additional columns and extract output columns
 if (opt$all_columns) { # include all columns
   pred <- pred %>%
-    mutate(ElementChr = chr,
-          name = paste0(ElementChr, ":", start, "-", end)) %>%
-    select(ElementChr,
+    mutate(
+          name = paste0(chr, ":", start, "-", end)) %>%
+    select(ElementChr = chr,
           ElementStart = start,
           ElementEnd = end,
           ElementName = name,
@@ -107,7 +108,8 @@ if (opt$all_columns) { # include all columns
           GeneSymbol = TargetGene,
           GeneEnsemblID = TargetGeneEnsembl_ID,
           GeneTSS = TargetGeneTSS,
-          SampleSummaryShort,
+          CellType = CellType,
+          # SampleSummaryShort,
           isSelfPromoter = isSelfPromoter,
           ABC.Score,
           distance,
@@ -115,9 +117,9 @@ if (opt$all_columns) { # include all columns
           everything())
 } else { # E2G predictions
     pred <- pred %>%
-    mutate(ElementChr = chr,
-          name = paste0(ElementChr, ":", start, "-", end)) %>%
-    select(ElementChr,
+    mutate(
+          name = paste0(chr, ":", start, "-", end)) %>%
+    select(ElementChr = chr,
           ElementStart = start,
           ElementEnd = end,
           ElementName = name,
@@ -125,7 +127,8 @@ if (opt$all_columns) { # include all columns
           GeneSymbol = TargetGene,
           GeneEnsemblID = TargetGeneEnsembl_ID,
           GeneTSS = TargetGeneTSS,
-          SampleSummaryShort,
+          CellType = CellType,
+          # SampleSummaryShort,
           isSelfPromoter = isSelfPromoter,
           ABC.Score,
           distance,

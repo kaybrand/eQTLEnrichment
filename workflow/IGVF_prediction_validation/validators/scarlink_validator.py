@@ -8,9 +8,29 @@ from .base import BaseValidator
 
 logger = logging.getLogger(__name__)
 
+# --- NEW: Define paths at the module level for reliability ---
+
+# Get the directory where THIS script (scarlink_validator.py) is located.
+# .resolve() makes the path absolute, which is safest.
+# .parent gets the directory containing the file.
+THIS_SCRIPT_DIR = Path(__file__).resolve().parent
+
+# Navigate from this script's directory to the root of the validator_project package
+# and then down to the 'rescue_scripts' directory.
+# `THIS_SCRIPT_DIR` is '.../validator_project/validators/'
+# `THIS_SCRIPT_DIR.parent` is '.../validator_project/'
+RESCUE_SCRIPTS_DIR = THIS_SCRIPT_DIR.parent / 'rescue_scripts'
+
 class SCARlinkValidator(BaseValidator):
-    def __init__(self):
-        self.score_col_name = "isE2GLink"
+    def __init__(self, score_col_name = "isE2GLink", original_score_col = "Score"):
+        """
+        Args:
+            score_col_name (str): The name of the TARGET column
+            original_score_col (str | None): The name of the SOURCE column to read from
+                                             during rescue
+        """
+        self.score_col_name = score_col_name
+        self.original_score_col = original_score_col
 
     def is_score_valid(self, file_path: Path, check_all_rows: bool = False) -> bool:
         """
@@ -72,14 +92,18 @@ class SCARlinkValidator(BaseValidator):
             # This check is good, but log it as an error for better tracking.
             logger.error(f"Cannot rescue: Input file must end with '.e2g.tsv.gz', got: {file_path.name}")
             return None
-
-        # Best practice: ensure the path to the script is reliable.
-        # This could be made configurable later if needed.
-        rescue_script_path = "workflow/IGVF_prediction_validation/adjust_SCARlink.py"
-
+        
+        # Construct the full, absolute path to the rescue script.
+        rescue_script_path = RESCUE_SCRIPTS_DIR / 'adjust_SCARlink.py'
+        
+        # Check if the script actually exists before trying to run it.
+        if not rescue_script_path.is_file():
+            logger.error(f"Rescue script not found at the expected path: {rescue_script_path}")
+            return None
+        
         command = [
             "python",
-            rescue_script_path,
+            str(rescue_script_path), # Use the new, reliable path
             str(file_path),  # Convert Path object to string for subprocess
             str(output_path)
         ]

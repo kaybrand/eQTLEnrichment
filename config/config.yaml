@@ -1,9 +1,9 @@
 ##  CONFIG
-outDir: "results/McGinnis_eQTLs_2nd_Jesse_tissue_pairings"
+outDir: "results/eQTL_08_31_2025"
 scratchDir: "$SCRATCH/Data"
 methodsTable: "config/config_methods.tsv"
-predictionsTable: "config/predictions_all_clusters.tsv" # still needs SCARlink, FigR
-methods: [scE2G_multiome, scE2G_ATAC, SCENT, ArchR, Signac, Cicero, pgBoost, scABC, Kendall, ABC_distanceToTSS] # , SCARlink, FigR
+predictionsTable: "config/predictions_validated.tsv"
+methods: [scE2G_multiome, scE2G_ATAC, SCENT, ArchR, Signac, Cicero, pgBoost, FigR, EPCOT, scABC, Kendall, ABC_distanceToTSS] # SCARlink (too few predictions available)
 eQTLVariants: "/oak/stanford/groups/engreitz/Users/sheth/Data/eQTL_Catalogue_v7/results/2024_0623_coarse_tissues/eQTL_catalogue_v7.processed.PIP0.5.tsv.gz" # columns: chr,start,end,variant_id,gene_hgnc,tissue,pip - I also have an extra gene_ensembl col
 metadataTable: "config/McGinnis_Datasets_Lookup_Table_Metadata.csv"
 

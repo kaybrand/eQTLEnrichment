@@ -1,17 +1,14 @@
-method	boolean	inverse_predictor	pred_name_long	threshold	score_col	color	geneUniverse
-scE2G_multiome	FALSE	FALSE	scE2G (Multiome)	0.149	Score	#792374	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-scE2G_ATAC	FALSE	FALSE	scE2G (scATAC)	0.174	Score	#006479	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-scABC	FALSE	FALSE	"ABC (A=scATAC, C=power law)"	0.015	ABC.Score	#0096a0	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-ABC_distanceToTSS	FALSE	TRUE	In element (ABC (A=scATAC)) & distance to TSS	54190	distance	#96a0b3	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-pgBoost	FALSE	FALSE	pgBoost (percentile)	0.94	Percentile	#0277BD	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-Signac	FALSE	FALSE	Signac (correlation)	0.05	Score	#916953	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-Cicero	FALSE	FALSE	Cicero (co-accessibility)	0.3	Score	#888364	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-SCENT	FALSE	TRUE	SCENT (p-value)	0.05	Score	#a5a083	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-ArchR	FALSE	FALSE	ArchR (correlation)	0.45	Score	#dcbca1	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-FigR	FALSE	TRUE	FigR (p-value)	0.05	Score	#bc9678	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-SCARlink	TRUE	FALSE	SCARlink	1	Score	#D95D39	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-DNase_ENCODE_rE2G	FALSE	FALSE	"ENCODE-rE2G (A=DNase, C=average Hi-C)"	0.201	Score	#DC6464	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-ENCODE_rE2G_extended	FALSE	FALSE	ENCODE-rE2G_Extended	0.336	ENCODE-rE2G.Score	#9B241C	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-DNase_ABC	FALSE	FALSE	"ABC (A=DNase,C=avg. Hi-C)"	0.016	ABC.Score.Feature	#5496CE	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-DNase_ABC_distanceToTSS	FALSE	TRUE	In element (ABC (A=DNase)) & distance to TSS	54128	distanceToTSS.Feature	#435369	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
-Kendall	FALSE	FALSE	Kendall correlation (access. at E x expr. at G)	0.013	Kendall	#d3a9ce	resources/genome_annotation/CollapsedGeneBounds.hg38.bed
+method	boolean	inverse_predictor	pred_name_long	threshold	score_col	original_score_col	color	geneUniverse			
+scE2G_multiome	FALSE	FALSE	scE2G (Multiome)	0.149	Score		#792374	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+scE2G_ATAC	FALSE	FALSE	scE2G (scATAC)	0.174	Score		#006479	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+scABC	FALSE	FALSE	ABC (A=scATAC, C=power law)	0.015	ABC.Score	ABC.Score	#0096a0	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+ABC_distanceToTSS	FALSE	TRUE	In element (ABC (A=scATAC)) & distance to TSS	54190	distance	distance	#96a0b3	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+pgBoost	FALSE	FALSE	pgBoost (percentile)	0.94	Percentile	Score	#0277BD	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+Signac	FALSE	FALSE	Signac (correlation)	0.05	Score		#916953	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+Cicero	FALSE	FALSE	Cicero (co-accessibility)	0.3	Score		#888364	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+SCENT	FALSE	TRUE	SCENT (p-value)	0.05	Score		#a5a083	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+ArchR	FALSE	FALSE	ArchR (correlation)	0.45	Score		#dcbca1	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+FigR	FALSE	TRUE	FigR (p-value)	0.05	Score		#bc9678	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+Kendall	FALSE	FALSE	Kendall tau (E access., G expr.)	0.013	Kendall		#d3a9ce	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+SCARlink	TRUE	FALSE	SCARlink	1	isE2GLink	Score	#D95D39	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			
+EPCOT	FALSE	FALSE	EPCOT	0.35	Score		#93A50E	resources/genome_annotation/CollapsedGeneBounds.hg38.bed			

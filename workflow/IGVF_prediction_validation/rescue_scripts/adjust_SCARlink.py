@@ -6,10 +6,14 @@ Calculate boolean FDR > 0.001, Spearman corr > 0.1, z-score > 0.5 for SCARlink s
 
 import pandas as pd
 import gzip
+import argparse
 from pathlib import Path
 import sys
+import os
+# import datetime
 
 def process_e2g_file(input_file_path, 
+                     output_file_path,
                     score_col='Score', 
                     fdr_col='Score_fdr', 
                     rho_col='Score_rho',
@@ -46,23 +50,16 @@ def process_e2g_file(input_file_path,
     
     # Convert to Path object for easier manipulation
     input_path = Path(input_file_path)
+    output_path = Path(output_file_path)
     
     # Check if file exists
     if not input_path.exists():
         raise FileNotFoundError(f"Input file does not exist: {input_file_path}")
     
-    # Check if already processed (filename ends with _boolean_score.e2g.tsv.gz)
-    if input_path.name.endswith('_boolean_score.e2g.tsv.gz'):
-        print(f"File already has boolean score suffix: {input_file_path}")
-        return str(input_path)
-    
-    # Create output file path
-    if input_path.name.endswith('.e2g.tsv.gz'):
-        output_name = input_path.name.replace('.e2g.tsv.gz', '_boolean_score.e2g.tsv.gz')
-    else:
-        raise ValueError(f"Input file must end with '.e2g.tsv.gz', got: {input_path.name}")
-    
-    output_path = input_path.parent / output_name
+    # Check if already processed
+    if output_file_path.exists() and (os.path.getmtime(output_file_path) > os.path.getmtime(input_file_path)):
+        print(f"Output file already exists; using this: {output_path.name}")
+        return(output_file_path)
     
     # Read header comments and first few rows to check structure
     header_comments = []
@@ -171,7 +168,7 @@ def process_e2g_file(input_file_path,
 
 
 # Example usage function with error handling
-def add_boolean_score_to_SCARlink(file_path, **kwargs):
+def add_boolean_score_to_SCARlink(file_path, output_path, **kwargs):
     """
     Wrapper function with comprehensive error handling.
     
@@ -187,7 +184,7 @@ def add_boolean_score_to_SCARlink(file_path, **kwargs):
     str : Path to output file
     """
     try:
-        return process_e2g_file(file_path, **kwargs)
+        return process_e2g_file(file_path, output_path, **kwargs)
     
     except FileNotFoundError as e:
         print(f"File not found error: {e}")
@@ -205,16 +202,26 @@ def add_boolean_score_to_SCARlink(file_path, **kwargs):
         print(f"Unexpected error processing file: {e}")
         raise
 
-def main(input_file):
+def main(input_file, output_file):
+    """Add boolean isE2GLink to file"""
+
     print(f"Adding boolean isE2GLink to SCARlink predictions: {input_file}")
     add_boolean_score_to_SCARlink(input_file, output_file)
     print(f"Find updated file at: {output_file}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage adjust_SCARlink.py <input_file_path> <output_file_path>")
-        sys.exit(1)
- 
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
+    # Intantiate arg parser
+    parser = argparse.ArgumentParser()
+    
+    # Add arguments or options
+    parser.add_argument("input_file")
+    parser.add_argument("output_file")
+
+    # get namespaces of args
+    args = parser.parse_args()
+
+    # Pull file paths from ArgParser Namespace
+    input_file = Path(args.input_file)
+    output_file = Path(args.output_file)
+    
     main(input_file, output_file)

@@ -1,0 +1,45 @@
+cluster	SampleSummaryShort	tissue
+K562-CRISPRi	K562 expressing dCas9-KRAB	
+THP1	THP1	dendritic,myeloid,blood
+Jurkat	Jurkat	
+Jurkat_Stim	Jurkat (stimulated)	
+TeloHAEC-CRISPRi	TeloHAEC expressing dCas9-KRAB	
+U2OS	U2OS	
+HAP1	HAP1	
+HL60	HL60	dendritic,myeloid,blood
+K562	K562	
+HUDEP2	HUDEP2	
+teloHAEC-0hr	TeloHAEC	
+teloHAEC-4hr	TeloHAEC (TNFa for 4hr)	
+teloHAEC-24hr	TeloHAEC (TNFa for 24hr)	
+imac_cholesterol	WTC11-derived macrophage (cholesterol-loaded)	dendritic,myeloid,blood
+imac_m1	WTC11-derived macrophage (M1)	dendritic,myeloid,blood
+imac_m2	WTC11-derived macrophage (M2)	dendritic,myeloid,blood
+imac_precursor	WTC11-derived macrophage (precursor)	dendritic,myeloid,blood
+imac_unstim	WTC11-derived macrophage (unstimulated)	dendritic,myeloid,blood
+D0	Differentiated B cell (D0)	
+D1	Differentiated B cell (D1)	LCL
+D2	Differentiated B cell (D2)	
+D3	Differentiated B cell (D3)	
+D5	Differentiated B cell (D5)	
+D6	Differentiated B cell (D6)	
+gastruloid	H1 gastruloids 	
+neuron_ngn2	NGN2-induced iPSC-derived neuron	
+neuron_hon_D6	H9 hESC-derived neural cell (D6)	
+neuron_hon_D11	H9 hESC-derived neural cell (D11)	
+neuron_hon_D20	H9 hESC-derived neural cell (D20)	
+hek293t	HEK293T	
+S1	H1 hESC-derived definitive endoderm (S1)	
+S3	H1 hESC-derived pancreatic progenitor 1 (S3)	
+S4	H1 hESC-derived pancreatic progenitor 2 (S4)	
+S5_2D	H1 hESC-derived endocrine (S5, 2D)	
+S5_2D3D	H1 hESC-derived endocrine (S5, 2D3D)	
+S6_2D	H1 hESC-derived SC-beta cell (S6, 2D)	pancreatic_islet
+S6_2D3D	H1 hESC-derived SC-beta cell (S6, 2D3D)	pancreatic_islet
+DMEM_noserum	hCASM (DMEM, no serum)	
+SMBM_noserum	hCASM (SMBM, no serum)	
+SMBM_serum	hCASM (SMBM, serum)	
+calcification_d10	hCASM calcification (D10)	fibroblast
+calcification_d6	hCASM calcification (D6)	fibroblast
+K562_multiome	K562	
+GM12878	GM12878	LCL

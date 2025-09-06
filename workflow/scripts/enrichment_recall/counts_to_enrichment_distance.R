@@ -18,12 +18,6 @@ sign_threshold = snakemake@params$thresholdPval %>% as.numeric()
 varPerGTExTissueFile = (snakemake@input$variantsPerGTExTissueByDist)
 outFile = (snakemake@output$enrichmentTable)
 
-if (method == "FigR") {
-  file_name <- paste0(method, "_counts_enrich_dist_", distance_this, ".RData")
-  save.image(file = file_name)
-  quit(save = 'yes')
-}
-
 # count matrix: each row = biosample, each col = tissue
 countMatrix = read.table(file=countFile, header=TRUE, stringsAsFactors=FALSE)
 

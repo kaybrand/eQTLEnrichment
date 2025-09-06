@@ -1,22 +1,28 @@
 # In validators/pgboost_validator.py
 
-# Removed check for Percentile column to address this:  
-# WARNING - if the prediction file really contains invalid data in teh percentile column, the rescuse function as it stands will just abort when it finds Percentile ALREADY exists
-# So the file will be ditched, not rescused.  This script is currently just a complicated way to check if there is 'Percentile' column.
-
-# CODE IN NEED OF TESTING
-
 import logging
 import subprocess
 import pandas as pd
+from pathlib import Path
 from .base import BaseValidator # This will work when you run as a module
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
+# Define paths at the module level for reliability
+THIS_SCRIPT_DIR = Path(__file__).resolve().parent
+RESCUE_SCRIPTS_DIR = THIS_SCRIPT_DIR.parent / 'rescue_scripts'
+
 class pgBoostValidator(BaseValidator):
-    def __init__(self):
-        self.score_col_name = "Percentile"
+    def __init__(self, score_col_name = "Percentile", original_score_col = "Score"):
+        """
+        Args:
+            score_col_name (str): The name of the TARGET column
+            original_score_col (str | None): The name of the SOURCE column to read from
+                                             during rescue
+        """
+        self.score_col_name = score_col_name
+        self.original_score_col = original_score_col
 
     def is_score_valid(self, file_path, check_all_rows=False):
         """
@@ -39,8 +45,8 @@ class pgBoostValidator(BaseValidator):
                 score_col = pd.to_numeric(chunk[self.score_col_name])
 
                 # Vectorized check is faster than `all()` on a Python loop.
-                if not ((score_col >= 0) & (score_col <= 1)).all():
-                    logger.warning(f"Validation failed for {file_path}: Scores found outside [0, 1] range.")
+                if not ((score_col >= 0) & (score_col <= 100)).all():
+                    logger.warning(f"Validation failed for {file_path}: Percentiles found outside [0, 100] range.")
                     return False
                 
                 # If we're only checking the first part of the file, break after one chunk.
@@ -66,14 +72,26 @@ class pgBoostValidator(BaseValidator):
 
     def rescue(self, file_path):
         """Calls an external script to add the 'Percentile' column."""
-        # Use a more descriptive name for the rescued file.
-        output_path = file_path.replace(".tsv.gz", ".rescued.tsv.gz")
+        if file_path.name.endswith('.e2g.tsv.gz'):
+            output_filename = file_path.name.replace('.e2g.tsv.gz', '_percentile.e2g.tsv.gz')
+            output_path = file_path.with_name(output_filename)
+        else:
+            logger.error(f"Cannot rescue: Input file must end with '.e2g.tsv.gz', got: {file_path.name}")
+            return None
+        
+        rescue_script_path = RESCUE_SCRIPTS_DIR / 'adjust_pgBoost.py'
+        if not rescue_script_path.is_file():
+            logger.error(f"Rescue script not found at the expected path: {rescue_script_path}")
+            return None
+
         command = [
-            "python",
-            "workflow/IGVF_prediction_validation/adjust_pgBoost.py", # Best to use a full or relative path
-            "--input", file_path,
-            "--output", output_path
+            "python", rescue_script_path,
+            "--input", str(file_path),
+            "--output", str(output_path),
+            "--source-score-col", self.original_score_col,
+            "--percentile-score-col", self.score_col_name
         ]
+
         try:
             # Use the logger instance we defined at the top of the file
             subprocess.run(command, check=True, capture_output=True, text=True)

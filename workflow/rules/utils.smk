@@ -59,34 +59,32 @@ def process_biosample_tissue_maps_old():
     methods_config['GTExTissue_map'] = GTExTissue_maps
     methods_config['biosample_map'] = biosample_maps
 
-def validate_prediction_table(config):
-    try:
-        result = subprocess.run(
-            ["conda", "run", "-n", "eQTLEnv", "python",
-            'workflow/scripts/preprocessing/validate_prediction_formats.py',
-            config['predictionsTable'],
-            config['methodsTable']],
-            check=True,
-            capture_output=True,
-            text=True,  # Crucial for text output
-        )
+# def validate_prediction_table(config):
+#     try:
+#         result = subprocess.run(
+#             ["conda", "run", "-n", "eQTLEnv", "python",
+#             'workflow/scripts/preprocessing/validate_prediction_formats.py',
+#             config['predictionsTable'],
+#             config['methodsTable']],
+#             check=True,
+#             capture_output=True,
+#             text=True,  # Crucial for text output
+#         )
 
-        print("Prediction Validation Alerts:")
-        print(result.stdout)
-        if len(result.stdout) < 2:
-            print("All prediction files look good!")
+#         print("Prediction Validation Alerts:")
+#         print(result.stdout)
+#         if len(result.stdout) < 2:
+#             print("All prediction files look good!")
 
-        return os.path.join(os.path.dirname(config['predictionsTable']), "validated_" + os.path.basename(config['predictionsTable']))
+#         return os.path.join(os.path.dirname(config['predictionsTable']), "validated_" + os.path.basename(config['predictionsTable']))
 
-    except subprocess.CalledProcessError as e:
-        print(f"Script failed with error code {e.returncode}:")
-        print(e.stderr)
-        sys.exit(1)  # Exit with a non-zero code on failure
+#     except subprocess.CalledProcessError as e:
+#         print(f"Script failed with error code {e.returncode}:")
+#         print(e.stderr)
+#         sys.exit(1)  # Exit with a non-zero code on failure
 
 
 def add_biosamples_and_files_to_config(methods_config, config):
-    print("Called add_biosamples_and_files_to_config")
-    print(f'config["predictionsTable"] is: {config["predictionsTable"]}')
     key = pd.read_csv(config["predictionsTable"], sep="\t").dropna(subset=["biosample"])
     methods_config = methods_config[methods_config["method"].isin(config["methods"])] # filter to relevant methods
     

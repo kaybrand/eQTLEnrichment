@@ -6,6 +6,7 @@ suppressPackageStartupMessages({library(ggplot2)
         library(egg)
 		library(data.table)})
     
+# load("plot_enrichment_heatmap_09_04_2025.RData")
 
 main <- function() {
 	# input data
@@ -14,9 +15,14 @@ main <- function() {
 	p_threshold = snakemake@params$p_threshold %>% as.numeric()
 	outFile_combined = snakemake@output$outFile_combined
 	outFile_solo = snakemake@output$outFile_alone
-	metadata_file = snakemake@params@metadata
-	biosample_tissue_map = snakemake@param@biosample_tissue_map
+	metadata_file = snakemake@params$metadata
+	biosample_tissue_file = snakemake@input$biosample_tissue_map
+	print(biosample_tissue_file)
+	print(class(biosample_tissue_file))
 	highlight_pairs = TRUE
+
+	# save.image(file = "plot_enrichment_heatmap_09_04_2025.RData")
+	# quit()
 
 	enr = fread(enrTableFile, sep="\t", header=TRUE)
 	enr = dplyr::filter(enr, nVariantsGTExTissue>20, is.finite(enrichment))
@@ -69,6 +75,7 @@ main <- function() {
 			# Reduce the distance between these biosamples.  The amount of reduction
 			# can be adjusted.  A value of 0 would force them to be clustered
 			# perfectly together.  0.5 halves the distance between them.
+			distance_reduction_factor <- 0.5
 			biosample_dist_matrix[biosample1, biosample2] <- biosample_dist_matrix[biosample1, biosample2] * distance_reduction_factor
 			biosample_dist_matrix[biosample2, biosample1] <- biosample_dist_matrix[biosample2, biosample1] * distance_reduction_factor # Ensure symmetry
 			}
