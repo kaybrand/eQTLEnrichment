@@ -1,5 +1,16 @@
 """
 main_script.py
+Kayla Brand
+
+Checks all file paths to confirm these are valid prediction files that will be accepted by the process predictions step in the eQTL pipeline.
+Can make specific adjustments for known models, for example, calculating percentile of scores for pgBoost predictions.
+
+To add new model fixes, define a new validator inheriting from the base.py abstract class, import it to this document, and 
+indicate whch models use this validator in the validator map.  Unrecognized models will be processed with the default validator, whose
+only requirement for valid scores is that they be interpretable as a float.
+
+Requires -p, --prediction-config path/to/eQTL/prediction/paths/config/table
+Requires -m, --method-config path/to/
 """
 
 import logging
@@ -31,8 +42,30 @@ VALIDATOR_MAP = {
     "scABC": scE2GValidator,
     "Kendall": scE2GValidator,
     "ABC_distanceToTSS": scE2GValidator,
-} # FigR, EPCOT will use default validators
+} # FigR, EPCOT will also use default validators
 
+DEFAULT_NA_VALUES = pd.io.parsers.readers.STR_NA_VALUES
+# This set includes: {'', 'NA', 'NaN', 'NULL', 'n/a', 'nan', 'null', ...and many more}
+
+def is_intentional_blank(value) -> bool:
+    """
+    Checks if a value is NaN, None, or a common string representation of a blank/NA.
+
+    This is used to differentiate user-intended blanks from actual file path typos.
+    - Returns True for: np.nan, None, "", " ", "NA", "nan", "NULL"
+    - Returns False for: "data/my_file.txt", "some_other_string", "0"
+    """
+    # 1. The most robust check for any NaN-like object (np.nan, None, pd.NaT).
+    # This will catch values that pd.read_csv converted automatically.
+    if pd.isna(value):
+        return True
+    
+    # 2. Check if it's a string that matches one of Pandas' default NA values.
+    # We strip whitespace to handle cells containing only spaces (" ").
+    if isinstance(value, str) and value.strip() in DEFAULT_NA_VALUES:
+        return True
+    
+    return False
 
 def process_table(df_table, config, validator_map, check_all_rows=False, verbose=False):
     """
@@ -58,16 +91,19 @@ def process_table(df_table, config, validator_map, check_all_rows=False, verbose
 
             # Don't validate GTEx tissue mappings; Handle special, non-path metadata columns explicitly
             if model_name == 'GTExTissue': 
-                validated_data[biosample][model_name] = str(cell_value).strip() # Keep original value
+                if is_intentional_blank(cell_value):
+                    validated_data[biosample][model_name] = "" # Store as clean empty string
+                else:
+                    validated_data[biosample][model_name] = str(cell_value).strip() # Keep original value
                 continue
 
             # Standardize empty/NaN cells
-            if pd.isna(cell_value) or not str(cell_value).strip():
+            if is_intentional_blank(cell_value): # includes blanks and a range of NA options
                 validated_data[biosample][model_name] = np.nan
                 continue
-            else:
-                # Save the cell contents as a file Path object
-                file_path = Path(cell_value.strip())
+
+            # This is intended as a file path. Save the cell contents as a file Path object
+            file_path = Path(cell_value.strip())
             
             # --- Dynamic Validator Configuration ---
             try:
@@ -181,19 +217,3 @@ def main(table_file: Path, config_file: Path, check_all_rows: bool, verbose: boo
 
 if __name__ == "__main__":
     main()
-
-    
-    # print("Testing")
-    # file_path = Path("/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset4/imac_precursor/CharacterizationMcGinnis_Dataset4_imac_precursor_ArchR.e2g.tsv.gz")
-    # validator_to_use = AbsCorrelationValidator(score_col_name="abs_Score", original_score_col="Score")
-    # process_prediction_file(file_path, validator_to_use, False, False)
-
-    # TESTED SCARlink: file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset10/K562-CRISPRi/CharacterizationMcGinnis_Dataset10_K562_SCARlink.e2g.tsv.gz"
-    # boolean_score.e2g.tsv.gz file passes all checks
-    # TESTED corrFamily: file_path = "/scratch/users/kaybrand/Data/GM12878_10XMultiome/GM12878/GM12878_10XMultiome_GM12878_ArchR.e2g.tsv.gz" # Need to take abs value
-    # TESTED corrFamily with finished file, passed all checks -> file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset2/teloHAEC-24hr/CharacterizationMcGinnis_Dataset2_teloHAEC-24hr_ArchR_absolute.e2g.tsv.gz"
-    # TESTED pgBoost Percentile file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset9/D6/CharacterizationMcGinnis_Dataset9_D6_pgBoost_percentile.e2g.tsv.gz"
-    # TESTED pgBoost rescue: file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset6/S6_2D/CharacterizationMcGinnis_Dataset6_S6_2D_pgBoost.e2g.tsv.gz"
-    # TESTED scE2G reformat to get scE2G Multiome core named columns - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/encode_e2g_predictions.tsv.gz"
-    # TESTED - passed original - scE2G reformat on something that is already correctly reformatted (for ABC) - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/scE2G_predictions_for_eQTL_reformated.e2g.tsv.gz"
-    # TESTED - passed reformatted - scE2G family reformat to get something else, like Kendall score - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/encode_e2g_predictions.tsv.gz"

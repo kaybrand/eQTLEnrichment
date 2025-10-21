@@ -18,7 +18,6 @@ distances_min = snakemake@params$distances_min %>% as.character() %>% strsplit("
 distances_max = snakemake@params$distances_max %>% as.character() %>% strsplit(" ") %>% unlist() %>% as.numeric()
 out_plot = snakemake@output$outFile
 
-
 ### FORMAT DATA
 # aggregate enrichment tables
 for (i in 1:length(enrTable_files)){

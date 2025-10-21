@@ -49,10 +49,19 @@ main <- function() {
 		pivot_wider(names_from=GTExTissue, values_from = enrichment) %>% column_to_rownames("Biosample") %>% drop_na()
 	M[is.na(M)] <- 0
 
-	# Get clustered tissue order
-	tissue_dist <- dist(1-cor(M))
-	tissue_dist[is.na(tissue_dist)] <- 0
-	order_tissues =  hclust(tissue_dist, method = "ward.D2")$order
+	n_tissues = ncol(M)
+	if (n_tissues >= 2) {
+		# Get clustered tissue order s
+		tissue_dist <- dist(1-cor(M))
+		tissue_dist[is.na(tissue_dist)] <- 0
+		order_tissues =  hclust(tissue_dist, method = "ward.D2")$order
+	} else if (n_tissues == 1) {
+		print(str(tissue_dist))
+		order_tissues = 1
+	} else {
+		print("There must be at least 1 tissue")
+		order_tissues = 0
+	}
 
 	# Get base biosample distance (disssimilarity of clusters) matrix
 	biosample_dist <- dist(1-cor(t(M)))
@@ -86,9 +95,17 @@ main <- function() {
 		constrained_biosample_dist <- as.dist(biosample_dist_matrix)
 
 		#  Perform hierarchical clustering on the modified distance matrix
-		order_biosamples = hclust(constrained_biosample_dist, method = "ward.D2")$order
+		if (attr(constrained_biosample_dist, "Size") >= 2) {
+			order_biosamples = hclust(constrained_biosample_dist, method = "ward.D2")$order
+		} else {
+			order_biosamples = 1
+		}
 	} else {
-		order_biosamples = hclust(biosample_dist, method = "ward.D2")$order
+		if (attr(biosample_dist, "Size") >= 2) {
+			order_biosamples = hclust(biosample_dist, method = "ward.D2")$order
+		} else {
+			order_biosamples = 1
+		}
 	}
 	# Turn the GTExTissue and Biosample columns into ordered categorical data
 	enr$Biosample = factor(enr$Biosample, levels=rownames(M)[order_biosamples], ordered=TRUE)

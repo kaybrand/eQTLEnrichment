@@ -14,10 +14,10 @@ import os
 
 def process_e2g_file(input_file_path, 
                      output_file_path,
-                    score_col='Score', 
-                    fdr_col='Score_fdr', 
-                    rho_col='Score_rho',
-                    score_threshold=0.5,
+                    zscore_col='zscore', 
+                    fdr_col='FDR', 
+                    rho_col='SpearmanCorr',
+                    zscore_threshold=0.5,
                     fdr_threshold=0.05,
                     rho_threshold=0.5,
                     chunk_size=10000):
@@ -28,13 +28,13 @@ def process_e2g_file(input_file_path,
     -----------
     input_file_path : str
         Path to input e2g.tsv.gz file
-    score_col : str
-        Name of the score column (default: 'Score')
+    zscore_col : str
+        Name of the z-score column (default: 'zscore')
     fdr_col : str
         Name of the FDR column (default: 'Score_fdr')
     rho_col : str
-        Name of the rho column (default: 'Score_rho')
-    score_threshold : float
+        Name of the Spearman Correlation column (default: 'Score_rho')
+    zscore_threshold : float
         Threshold for score column (default: 0.5)
     fdr_threshold : float
         Threshold for FDR column (default: 0.05)
@@ -83,13 +83,13 @@ def process_e2g_file(input_file_path,
     except Exception as e:
         raise ValueError(f"Error reading file as TSV: {e}")
     
-    # Check if isE2GLink column already exists
-    if 'isE2GLink' in first_chunk.columns:
-        print("isE2GLink column already exists")
+    # Check if Score column already exists
+    if 'Score' in first_chunk.columns:
+        print("Score column already exists")
         return str(input_path)
     
     # Validate required columns exist
-    required_cols = [score_col, fdr_col, rho_col]
+    required_cols = [zscore_col, fdr_col, rho_col]
     missing_cols = [col for col in required_cols if col not in first_chunk.columns]
     
     if missing_cols:
@@ -107,7 +107,7 @@ def process_e2g_file(input_file_path,
                 raise ValueError(f"Column '{col}' does not contain numeric values: {e}")
     
     print(f"Validated columns: {required_cols}")
-    print(f"Using thresholds - Score: {score_threshold}, FDR: {fdr_threshold}, Rho: {rho_threshold}")
+    print(f"Using thresholds - Z-Score: {zscore_threshold}, FDR: {fdr_threshold}, SpearmanCorr: {rho_threshold}")
     
     # Process file in chunks
     print(f"Processing file in chunks of {chunk_size} rows...")
@@ -129,14 +129,14 @@ def process_e2g_file(input_file_path,
                 chunk[col] = pd.to_numeric(chunk[col], errors='coerce')
             
             # Create boolean column based on thresholds
-            # isE2GLink is True if ALL conditions are met:
-            # - Score >= score_threshold
+            # Score is True if ALL conditions are met:
+            # - zscore >= zscore_threshold
             # - Score_fdr <= fdr_threshold  
             # - Score_rho >= rho_threshold
             # If any value is NaN, that condition is considered False
             
-            chunk['isE2GLink'] = (
-                (chunk[score_col] >= score_threshold) & 
+            chunk['Score'] = (
+                (chunk[zscore_col] >= zscore_threshold) & 
                 (chunk[fdr_col] <= fdr_threshold) & 
                 (chunk[rho_col] >= rho_threshold)
             )
@@ -155,10 +155,10 @@ def process_e2g_file(input_file_path,
     # Verify the output file
     try:
         verify_chunk = pd.read_csv(output_path, sep='\t', comment='#', nrows=100)
-        if 'isE2GLink' not in verify_chunk.columns:
-            raise ValueError("Output file verification failed: isE2GLink column not found")
+        if 'Score' not in verify_chunk.columns:
+            raise ValueError("Output file verification failed: Score column not found")
         
-        true_count = verify_chunk['isE2GLink'].sum()
+        true_count = verify_chunk['Score'].sum()
         print(f"Verification: Found {true_count} True values in first 100 rows")
         
     except Exception as e:
@@ -203,9 +203,9 @@ def add_boolean_score_to_SCARlink(file_path, output_path, **kwargs):
         raise
 
 def main(input_file, output_file):
-    """Add boolean isE2GLink to file"""
+    """Add boolean Score to file"""
 
-    print(f"Adding boolean isE2GLink to SCARlink predictions: {input_file}")
+    print(f"Adding boolean Score to SCARlink predictions: {input_file}")
     add_boolean_score_to_SCARlink(input_file, output_file)
     print(f"Find updated file at: {output_file}")
 

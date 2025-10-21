@@ -17,6 +17,10 @@ import re
 import csv
 from pathlib import Path
 from collections import OrderedDict
+import click
+
+# Verify format of synced files matches expectations before running (dataset/cluster/predictions nesting)
+# Can be run in eQTLEnv
 
 class DuplicateModelConflict(Exception):
     """Raised when it is unclear which of two files represents the E2G predictions for a particular cell type"""
@@ -120,8 +124,8 @@ def find_raw_baseline_predictions(base_directory):
 
     for root, dirs, files in os.walk(base_directory):
         for file in files:
-            # print(f"root of predictions: {os.path.basename(root), root}" if file == 'encode_e2g_predictions.tsv.gz' else f"Ignoring file: {file}")
-            if file == 'encode_e2g_predictions.tsv.gz' and os.path.basename(root) == 'multiome_powerlaw_v3':
+            # print(f"root of predictions: {os.path.basename(root), root}" if file == 'scE2G_predictions.tsv.gz' else f"Ignoring file: {file}")
+            if file == 'scE2G_predictions.tsv.gz' and os.path.basename(root) == 'multiome_powerlaw_v3':
                 parent_directory = os.path.basename(os.path.dirname(root))
                 file_path = os.path.join(root, file)
                 result[parent_directory] = os.path.abspath(file_path)
@@ -187,20 +191,25 @@ def read_gtex_tissue_map(tsv_file_path):
     
     return cluster_to_tissue
 
-
-def main():
+@click.command()
+@click.option( # or generate this table automatically 
+    '-s', '--sync', 'sync_please',
+    is_flag=True,  # This makes it a boolean flag
+    default=False,
+    help='If set, Sync from Synapse instead of generating a prediction file'
+)
+def main(sync_please):
     # Log into Synapse
     syn = synapseclient.Synapse()
     syn.login()
 
     # Sync Synapse E2G predictions Project locally
-    sync_please = False
     directory_to_sync_project_to = os.path.join("/", "scratch", "users", "kaybrand", "Data")
     scE2G_results_dir = os.path.join("/", "oak", "stanford", "groups", "engreitz", "Users", "kaybrand", "scE2G", "results")
     column_order = ['scE2G_multiome', 'scE2G_ATAC', 'pgBoost', 'ArchR', 'Signac', 'Cicero', 'SCENT', 'FigR', 'SCARlink', 'EPCOT']
     # Define paths at the module level for reliability
     THIS_SCRIPT_DIR = Path(__file__).resolve().parent
-    CONFIG_SCRIPTS_DIR = THIS_SCRIPT_DIR.parent.parent.parent / 'config'
+    CONFIG_SCRIPTS_DIR = THIS_SCRIPT_DIR.parent.parent / 'config'
     print(CONFIG_SCRIPTS_DIR)
     tissue_mapping_config = os.path.join(CONFIG_SCRIPTS_DIR, "eQTL_tissue_matches.tsv")
 
@@ -210,28 +219,43 @@ def main():
         # project.sync_from_synapse(path=DIRECTORY_TO_SYNC_PROJECT_TO, if_collision="keep.local")
         sync.syncFromSynapse(syn, entity='syn53469845', path=directory_to_sync_project_to, ifcollision="overwrite.local")
         # print_project_head(project)
+    else:
+        # Create predictions config
+        predictions_df = generate_predictions_config_table(directory_to_sync_project_to, column_order)
 
-    # Create predictions config
-    predictions_df = generate_predictions_config_table(directory_to_sync_project_to, column_order)
+        # Add the baseline predictors
+        raw_scE2G_prediction_paths = find_raw_baseline_predictions(scE2G_results_dir)
+        print(raw_scE2G_prediction_paths)
+        for baseline in ['scABC', 'Kendall', 'ABC_distanceToTSS']:
+            predictions_df[baseline] = predictions_df.index.map(raw_scE2G_prediction_paths)
 
-    # Add the baseline predictors
-    raw_scE2G_prediction_paths = find_raw_baseline_predictions(scE2G_results_dir)
-    print(raw_scE2G_prediction_paths)
-    for baseline in ['scABC', 'Kendall', 'ABC_distanceToTSS']:
-        predictions_df[baseline] = predictions_df.index.map(raw_scE2G_prediction_paths)
+        # Add the gene expression tissue mapping column based on cell names
+        gtex_tissue_map = read_gtex_tissue_map(tissue_mapping_config)
+        predictions_df['GTExTissue'] = predictions_df.index.map(gtex_tissue_map)
 
-    # Add the gene expression tissue mapping column based on cell names
-    gtex_tissue_map = read_gtex_tissue_map(tissue_mapping_config)
-    predictions_df['GTExTissue'] = predictions_df.index.map(gtex_tissue_map)
+        # Print for debug
+        print(predictions_df.head())
 
-    # Print for debug
-    print(predictions_df.head())
-
-    # Save the table
-    predictions_df.to_csv(os.path.join('config', 'predictions.tsv'), sep='\t', index=True)
+        # Save the table
+        predictions_df.to_csv(os.path.join('config', 'predictions.tsv'), sep='\t', index=True)
 
     
 
 if __name__ ==  "__main__":
     main()
+
+    # print("Testing main validation script")
+    # file_path = Path("/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset4/imac_precursor/CharacterizationMcGinnis_Dataset4_imac_precursor_ArchR.e2g.tsv.gz")
+    # validator_to_use = AbsCorrelationValidator(score_col_name="abs_Score", original_score_col="Score")
+    # process_prediction_file(file_path, validator_to_use, False, False)
+
+    # TESTED SCARlink: file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset10/K562-CRISPRi/CharacterizationMcGinnis_Dataset10_K562_SCARlink.e2g.tsv.gz"
+    # boolean_score.e2g.tsv.gz file passes all checks
+    # TESTED corrFamily: file_path = "/scratch/users/kaybrand/Data/GM12878_10XMultiome/GM12878/GM12878_10XMultiome_GM12878_ArchR.e2g.tsv.gz" # Need to take abs value
+    # TESTED corrFamily with finished file, passed all checks -> file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset2/teloHAEC-24hr/CharacterizationMcGinnis_Dataset2_teloHAEC-24hr_ArchR_absolute.e2g.tsv.gz"
+    # TESTED pgBoost Percentile file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset9/D6/CharacterizationMcGinnis_Dataset9_D6_pgBoost_percentile.e2g.tsv.gz"
+    # TESTED pgBoost rescue: file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset6/S6_2D/CharacterizationMcGinnis_Dataset6_S6_2D_pgBoost.e2g.tsv.gz"
+    # TESTED scE2G reformat to get scE2G Multiome core named columns - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/encode_e2g_predictions.tsv.gz"
+    # TESTED - passed original - scE2G reformat on something that is already correctly reformatted (for ABC) - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/scE2G_predictions_for_eQTL_reformated.e2g.tsv.gz"
+    # TESTED - passed reformatted - scE2G family reformat to get something else, like Kendall score - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/encode_e2g_predictions.tsv.gz"
 

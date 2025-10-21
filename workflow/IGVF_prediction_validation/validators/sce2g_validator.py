@@ -52,7 +52,7 @@ class scE2GValidator(BaseValidator):
         if file_path.name.endswith('.e2g.tsv.gz'):
             output_filename = file_path.name.replace('.e2g.tsv.gz', '_reformated.e2g.tsv.gz')
             output_path = file_path.with_name(output_filename)
-        elif file_path.name == 'encode_e2g_predictions.tsv.gz':
+        elif file_path.name == 'scE2G_predictions.tsv.gz':
             output_path = file_path.with_name('scE2G_predictions_for_eQTL_reformated.e2g.tsv.gz')
         else:
             logger.error(f"Cannot rescue: Input file must end with '.e2g.tsv.gz', got: {file_path.name}")

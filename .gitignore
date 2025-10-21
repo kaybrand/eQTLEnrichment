@@ -45,12 +45,18 @@ vignettes/*.pdf
 tempData/
 config/discard/
 config/reference/
+config/IGVF_methods/
 
 # work in progress (include steps to build prediction config and validate it in the eQTL workflow?)
 Rplots.pdf
-workflow/scripts/visualization/copy_of_plot_enrichment_heatmap.R
+log.txt
+# Validation
+workflow/IGVF_prediction_validation/make_prediction_config.py
 workflow/scripts/preprocessing/reformat_IGVF_inputs.py
 workflow/scripts/preprocessing/validate_prediction_formats.py
 workflow/scripts/visualization/boxplot_compare_enrichment.R
 workflow/scripts/generate_input/prepare_prediction_config.py
 workflow/rules/configuration.smk
+# Plotting
+workflow/scripts/visualization/custom_enrichment_at_recall.R
+workflow/scripts/visualization/custom_enrichment_recall_curve.R

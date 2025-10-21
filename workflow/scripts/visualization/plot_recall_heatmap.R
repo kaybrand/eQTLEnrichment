@@ -11,16 +11,30 @@ cluster_tissues_biosamples <- function(res){
 		pivot_wider(names_from=GTExTissue, values_from=recall.linking) %>% column_to_rownames("Biosample")
 	M[is.na(M)] = 0
 	
-	tissue_dist = dist(1-cor(M))
-	tissue_dist[is.na(tissue_dist)] = 0
-	order_tissues = hclust(tissue_dist, method = "ward.D2")$order
+	n_tissues = ncol(M)
+	if (n_tissues >= 2) { # at least 2 tissues
+		tissue_dist = dist(1-cor(M))
+		tissue_dist[is.na(tissue_dist)] = 0 
+		order_tissues = hclust(tissue_dist, method = "ward.D2")$order
+	} else if (n_tissues == 1) {
+		print(str(tissue_dist))
+		order_tissues = 1
+	} else {
+		print("There must be at least 1 tissue")
+		order_tissues = 0
+	}
 	tissues_ordered = colnames(M)[order_tissues]
 
-	biosample_dist = dist(1-cor(t(M)))
-	biosample_dist[is.na(biosample_dist)] = 0
-	order_biosamples = hclust(biosample_dist, method="ward.D2")$order
-	biosamples_ordered = rownames(M)[order_biosamples]
-
+	n_biosamples = nrow(M)
+	if (n_biosamples >=2) {
+		biosample_dist = dist(1-cor(t(M)))
+		biosample_dist[is.na(biosample_dist)] = 0
+		order_biosamples = hclust(biosample_dist, method="ward.D2")$order
+		biosamples_ordered = rownames(M)[order_biosamples]
+	} else {
+		biosamples_ordered = rownames(M)[1]
+	}
+	
 	res$GTExTissue = factor(res$GTExTissue, levels=tissues_ordered, ordered=TRUE)
 	res$Biosample = factor(res$Biosample, levels=biosamples_ordered, ordered=TRUE)
 	return(res)
