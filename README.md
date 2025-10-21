@@ -27,6 +27,9 @@ git@github.com:EngreitzLab/eQTLEnrichment.git
 ```
 snakemake -j1 --configfile config/config_example.yml --use-conda
 ```
+## Prediction file format validation
+Use the IGVF_prediction_validation package to verify and correct the format of predictions in the predictions configuration table before feeding it to the eQTL pipeline.  
+For models not already represented by the pgBoostValidator, SCARlinkValidator, AbsCorrelationValidator, scE2GValidator, or DefaultValidator, define your own class inheriting from the BaseValidator abstract class.
 
 ## Config files
 The pipeline requires three config files. The required inputs are outlined below.
