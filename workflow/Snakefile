@@ -15,8 +15,25 @@ config['validatedPredictionsTable'] = os.path.join(os.path.dirname(config['predi
 # read in prediction method config file
 methods_config_file = config["methodsTable"]
 methods_config = pd.read_table(methods_config_file, na_values="").fillna("None").set_index("method", drop=False)
+
+def is_config_true(value):
+    """Interpret a boolean cell from the methods config table.
+
+    This column is read with na_values="" and then .fillna("None"), so a blank
+    cell arrives here as the string "None" -- which is truthy. Testing truthiness
+    directly therefore negates the threshold of any method whose cell was left
+    empty, while process_predictions.R (which tests invert %in% c("True","TRUE"))
+    does NOT negate that method's scores. The result is a silently desynchronized
+    sign for that one method: predictions kept above the threshold are exactly the
+    ones that should have been excluded. Comparing explicitly here keeps the two
+    in step.
+    """
+    if isinstance(value, str):
+        return value.strip().lower() == "true"
+    return bool(value)
+
 #print(pd.concat([methods_config['threshold'], methods_config['inverse_predictor']], axis=1))
-methods_config['threshold'] = [(-1)*float(thresh) if inverse else thresh 
+methods_config['threshold'] = [(-1)*float(thresh) if is_config_true(inverse) else thresh
                                 for thresh,inverse in zip(methods_config['threshold'], methods_config['inverse_predictor'])
                                 ]
 
