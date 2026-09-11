@@ -21,7 +21,10 @@ rule process_predictions:
         codeDir = config["codeDir"],
         chrSizes = config["chrSizes"],
         scoreCol = lambda wildcards: methods_config.loc[wildcards.method, "score_col"],
-        inversePred = lambda wildcards: methods_config.loc[wildcards.method, "inverse_predictor"]
+        inversePred = lambda wildcards: methods_config.loc[wildcards.method, "inverse_predictor"],
+        # Optional column: methods configs that predate it simply get FALSE.
+        dropNegative = lambda wildcards: (methods_config.loc[wildcards.method, "nonneg_only"]
+                                          if "nonneg_only" in methods_config.columns else "FALSE")
     output:
         predictionsSorted_temp = temp(os.path.join(config["outDir"], "{method}", "biosamples", "{biosample}", "enhancerPredictions.sorted.tsv")),
         predictionsSorted = (os.path.join(config["outDir"], "{method}", "biosamples", "{biosample}", "enhancerPredictions.sorted.bed.gz"))
@@ -55,7 +58,7 @@ rule process_predictions:
         fi
 
         # invert score if inverted predictor and filter to gene universe and set biosample column
-        Rscript {params.codeDir}/preprocessing/process_predictions.R --input {output.predictionsSorted_temp}  --genes {input.geneUniverse} --biosample {wildcards.biosample} --invert {params.inversePred}  | gzip > {output.predictionsSorted}
+        Rscript {params.codeDir}/preprocessing/process_predictions.R --input {output.predictionsSorted_temp}  --genes {input.geneUniverse} --biosample {wildcards.biosample} --invert {params.inversePred} --drop_negative {params.dropNegative}  | gzip > {output.predictionsSorted}
 
         # The gene-universe filter can also empty the file (e.g. a prediction set using
         # Ensembl IDs where the universe uses symbols), which is equally silent.
