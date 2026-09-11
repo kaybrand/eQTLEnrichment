@@ -27,15 +27,18 @@ from validators import (
     SCARlinkValidator,
     AbsCorrelationValidator,
     DefaultValidator,
-    scE2GValidator
+    scE2GValidator,
+    GEEESValidator
 )
 
 VALIDATOR_MAP = {
+    # pgBoost and GEEES are both thresholded on a 0-1 Percentile at 0.95, but pgBoost
+    # additionally excludes its saturated Score == 1 links and GEEES does not, so they
+    # use separate validators.
     "pgBoost": pgBoostValidator,
     # GEEES ships a raw positive Score with no Percentile column and no published
-    # score threshold. Rank-transform it the same way as pgBoost so it can be
-    # thresholded on Percentile >= 0.95, i.e. the top 5% of its own predictions.
-    "GEEES": pgBoostValidator,
+    # score threshold, so it is ranked into the top 5% of its own predictions.
+    "GEEES": GEEESValidator,
     "SCARlink": SCARlinkValidator,
     # "Signac": AbsCorrelationValidator,
     # "Cicero": AbsCorrelationValidator,
@@ -125,7 +128,7 @@ def process_table(df_table, config, validator_map, check_all_rows=False, verbose
             ValidatorClass = validator_map.get(model_name, DefaultValidator)
 
             try:
-                if ValidatorClass in [AbsCorrelationValidator, pgBoostValidator, SCARlinkValidator]:
+                if ValidatorClass in [AbsCorrelationValidator, pgBoostValidator, SCARlinkValidator, GEEESValidator]:
                     validator_to_use = ValidatorClass(
                         score_col_name=score_col_name,
                         original_score_col=original_score_col

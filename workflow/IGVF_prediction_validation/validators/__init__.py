@@ -4,6 +4,7 @@ from .default_validator import DefaultValidator
 from .correlation_validator import AbsCorrelationValidator
 from .scarlink_validator import SCARlinkValidator
 from .sce2g_validator import scE2GValidator
+from .geees_validator import GEEESValidator
 
 # Add a new line here every time you create a new validator file
 
@@ -13,5 +14,6 @@ __all__ = [
     'pgBoostValidator',
     'AbsCorrelationValidator',
     'SCARlinkValidator',
-    'scE2GValidator'
+    'scE2GValidator',
+    'GEEESValidator'
 ]

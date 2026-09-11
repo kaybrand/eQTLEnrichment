@@ -14,7 +14,19 @@ logger = logging.getLogger(__name__)
 THIS_SCRIPT_DIR = Path(__file__).resolve().parent
 RESCUE_SCRIPTS_DIR = THIS_SCRIPT_DIR.parent / 'rescue_scripts'
 
+# pgBoost saturates at Score == 1 for a large block of links (18-19% of rows in the
+# 2026 submission). The uploader asked for those to be excluded from the benchmark.
+EXCLUDED_PGBOOST_SCORE = 1.0
+
 class pgBoostValidator(BaseValidator):
+    """Validates pgBoost predictions: 0-1 Percentile, with Score == 1 links excluded.
+
+    pgBoost diverges from GEEES here. Both rank-transform a score into a 0-1
+    Percentile, but only pgBoost drops its saturated Score == 1 links first. See
+    GEEESValidator for the un-filtered variant; the two are kept as separate classes
+    so a change to pgBoost's handling cannot silently alter GEEES.
+    """
+
     def __init__(self, score_col_name = "Percentile", original_score_col = "Score"):
         """
         Args:
@@ -27,16 +39,23 @@ class pgBoostValidator(BaseValidator):
 
     def is_score_valid(self, file_path, check_all_rows=False):
         """
-        Checks if the pgBoost score column exists, is numeric, and is between 0 and 1.
+        Checks that Percentile exists, is numeric and lies in [0, 1], AND that no
+        link retains the saturated Score == 1.
         """
         try:
-            # We will read in chunks regardless, but only use the first chunk if not check_all_rows.
+            # Read the percentile column and the raw score together: a submitted file
+            # can have a perfectly valid Percentile while still containing the
+            # Score == 1 links that must be removed.
+            usecols = [self.score_col_name]
+            if self.original_score_col and self.original_score_col != self.score_col_name:
+                usecols.append(self.original_score_col)
+
             chunk_iterator = pd.read_csv(
                 file_path,
                 sep='\t',
                 comment='#',
                 compression='gzip',
-                usecols=[self.score_col_name], # This will raise ValueError if column is missing
+                usecols=usecols, # This will raise ValueError if a column is missing
                 chunksize=100000,
                 low_memory=False
             )
@@ -53,11 +72,22 @@ class pgBoostValidator(BaseValidator):
                 if not ((score_col >= 0) & (score_col <= 1)).all():
                     logger.warning(f"Validation failed for {file_path}: Percentiles found outside [0, 1] range.")
                     return False
-                
+
+                # Saturated links must already have been removed. Because they are all
+                # tied at the ceiling, leaving them in also distorts every other
+                # percentile: Percentile >= 0.95 admits ~22% of pairs rather than 5%.
+                if self.original_score_col in chunk.columns:
+                    raw = pd.to_numeric(chunk[self.original_score_col])
+                    if (raw == EXCLUDED_PGBOOST_SCORE).any():
+                        logger.info(f"{file_path.name} still contains "
+                                    f"{self.original_score_col} == {EXCLUDED_PGBOOST_SCORE} links. "
+                                    f"Proceeding to rescue to exclude them.")
+                        return False
+
                 # If we're only checking the first part of the file, break after one chunk.
                 if not check_all_rows:
                     break
-            
+
             # If all chunks passed (or the first one passed on a quick check), the score is valid.
             return True
 
@@ -97,7 +127,11 @@ class pgBoostValidator(BaseValidator):
             "--input", str(file_path),
             "--output", str(output_path),
             "--source-score-col", self.original_score_col,
-            "--percentile-score-col", self.score_col_name
+            "--percentile-score-col", self.score_col_name,
+            # Drop the saturated links, then rank what remains. Percentiles are
+            # recomputed on the retained rows so the ranking describes the set
+            # actually being benchmarked. GEEESValidator omits this flag.
+            "--exclude-score-equal", str(EXCLUDED_PGBOOST_SCORE)
         ]
 
         try:

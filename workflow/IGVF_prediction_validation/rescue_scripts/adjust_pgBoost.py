@@ -51,7 +51,8 @@ def add_precentile_suffix(input_file_path):
     output_file_path = os.path.join(dir_name, output_name)
     return output_file_path
 
-def add_percentile_column(input_file, output_file, sig_fig=5, source_col='Score', percentile_col='Percentile'):
+def add_percentile_column(input_file, output_file, sig_fig=5, source_col='Score',
+                          percentile_col='Percentile', exclude_score_equal=None):
     """
     Adds a 'Percentile' column to a gzipped TSV file containing the percentile
     of each value in the 'Score' column. Uses pd.read_csv for efficiency.
@@ -103,6 +104,20 @@ def add_percentile_column(input_file, output_file, sig_fig=5, source_col='Score'
     # Convert 'Score' column to numeric (important for percentile calculation)
     df[source_col] = pd.to_numeric(df[source_col], errors='coerce')
 
+    # Optionally drop links at a sentinel score before ranking. pgBoost assigns
+    # Score == 1 to roughly 18-19% of its links; because those are all tied at the
+    # ceiling and rankdata(method='ordinal') breaks ties arbitrarily, they occupy the
+    # whole top of the distribution and push Percentile >= 0.95 out to ~22% of pairs.
+    # The uploader asked for them to be excluded. Percentiles are recomputed on the
+    # retained rows so the ranking reflects the set actually being benchmarked.
+    if exclude_score_equal is not None:
+        n_before = len(df)
+        df = df[df[source_col] != exclude_score_equal].copy()
+        print(f"Excluded {n_before - len(df)} of {n_before} rows with "
+              f"{source_col} == {exclude_score_equal}; {len(df)} remain")
+        if df.empty:
+            raise ValueError(f"All rows had {source_col} == {exclude_score_equal}; nothing to rank")
+
     # Calculate percentiles
     df[percentile_col] = calculate_percentiles(df[source_col])
 
@@ -130,7 +145,9 @@ def main(args):
             output_file = args.output_file
 
         print(f"Adding Percentile column to pgBoost prediction file: {args.input_file}")
-        add_percentile_column(args.input_file, output_file, source_col=args.source_col, percentile_col=args.percentile_col)
+        add_percentile_column(args.input_file, output_file, source_col=args.source_col,
+                              percentile_col=args.percentile_col,
+                              exclude_score_equal=args.exclude_score_equal)
         print(f"Find updated file at: {output_file}")
 
 if __name__ == "__main__":
@@ -139,6 +156,8 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--output', dest='output_file', help = 'name of validated pgBoost file')
     parser.add_argument('-s', '--source-score-col', dest='source_col', default='Score', help = 'column to take percentile of')
     parser.add_argument('-p', '--percentile-score-col', dest='percentile_col', default='Percentile', help = 'name of column to save percentile in')
+    parser.add_argument('-x', '--exclude-score-equal', dest='exclude_score_equal', type=float, default=None,
+                        help = 'drop rows whose source score equals this value before ranking (pgBoost uses 1)')
     args = parser.parse_args()
     main(args)
     
