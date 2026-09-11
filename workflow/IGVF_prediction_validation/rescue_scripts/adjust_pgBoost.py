@@ -14,9 +14,20 @@ import argparse
 import datetime
 
 def calculate_percentiles(series):
-    """Calculates percentiles of a Pandas Series using rankdata."""
+    """Calculates the fractional rank of each value, on a 0-1 scale.
+
+    This MUST match the scale used by the submitted pgBoost prediction files, whose
+    Percentile column runs 0..1, because config_methods.tsv thresholds it at 0.95.
+    This previously returned 100 * (ranks-1)/(len-1), i.e. 0-100, so any rescued
+    file was silently on a different scale from the submitted ones and a 0.95
+    threshold would have admitted ~99% of pairs instead of the top 5%.
+    """
     ranks = rankdata(series, method='ordinal')  # Or choose a different method if needed
-    percentiles = 100 * (ranks - 1) / (len(series) - 1)  # Ensure 0-100 range
+    denominator = len(series) - 1
+    if denominator <= 0:
+        # Single-row file: rank is degenerate, call it the top percentile.
+        return [1.0] * len(series)
+    percentiles = (ranks - 1) / denominator  # 0-1 range, matching submitted pgBoost files
     return percentiles
 
 def add_precentile_suffix(input_file_path):

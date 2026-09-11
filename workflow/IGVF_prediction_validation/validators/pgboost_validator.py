@@ -45,8 +45,12 @@ class pgBoostValidator(BaseValidator):
                 score_col = pd.to_numeric(chunk[self.score_col_name])
 
                 # Vectorized check is faster than `all()` on a Python loop.
-                if not ((score_col >= 0) & (score_col <= 100)).all():
-                    logger.warning(f"Validation failed for {file_path}: Percentiles found outside [0, 100] range.")
+                # Range is 0-1, matching the submitted pgBoost files and the 0.95
+                # threshold in config_methods.tsv. Accepting 0-100 here (as this
+                # previously did) would pass a file on the wrong scale, and a 0.95
+                # threshold against 0-100 values admits nearly every pair.
+                if not ((score_col >= 0) & (score_col <= 1)).all():
+                    logger.warning(f"Validation failed for {file_path}: Percentiles found outside [0, 1] range.")
                     return False
                 
                 # If we're only checking the first part of the file, break after one chunk.

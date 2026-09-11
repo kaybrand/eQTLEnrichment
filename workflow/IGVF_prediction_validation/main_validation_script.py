@@ -32,6 +32,10 @@ from validators import (
 
 VALIDATOR_MAP = {
     "pgBoost": pgBoostValidator,
+    # GEEES ships a raw positive Score with no Percentile column and no published
+    # score threshold. Rank-transform it the same way as pgBoost so it can be
+    # thresholded on Percentile >= 0.95, i.e. the top 5% of its own predictions.
+    "GEEES": pgBoostValidator,
     "SCARlink": SCARlinkValidator,
     # "Signac": AbsCorrelationValidator,
     # "Cicero": AbsCorrelationValidator,
@@ -41,7 +45,10 @@ VALIDATOR_MAP = {
     "scE2G_ATAC": scE2GValidator,
     "scABC": scE2GValidator,
     "Kendall": scE2GValidator,
-    "ABC_distanceToTSS": scE2GValidator,
+    # Renamed from ABC_distanceToTSS in the 2026 methods config. Keys here must match
+    # the `method` values in that table or the model silently falls back to
+    # DefaultValidator, skipping the scE2G reformat hook.
+    "distanceToTSS": scE2GValidator,
 } # FigR, EPCOT will also use default validators
 
 DEFAULT_NA_VALUES = pd.io.parsers.readers.STR_NA_VALUES
