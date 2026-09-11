@@ -32,7 +32,13 @@ scores = data.frame(method=method_names, score_threshold=score_thresholds)
 cp = left_join(cp, scores, by="method")
 
 df = dplyr::left_join(df, cp, by="method")
-df$key = paste0(df$pred_name_long, " (", df$Biosample, ")")
+# The " (biosample)" suffix exists to disambiguate a predictor that matches one
+# eQTL tissue through more than one prediction biosample. In the AllMatches
+# aggregate every row carries the synthetic biosample "all_matches", so the
+# suffix adds nothing and appears in every legend entry as noise.
+df$key = ifelse(df$Biosample == "all_matches",
+                df$pred_name_long,
+                paste0(df$pred_name_long, " (", df$Biosample, ")"))
 df[is.na(df)] = 0
 df = df[order(df$threshold),]
 

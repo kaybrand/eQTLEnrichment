@@ -51,7 +51,12 @@ message("Printing df"); print(df)
 # organize for plotting
 if (nrow(df)>1) {
 	df = dplyr::left_join(df, cp, by="method")
-	df$key = paste0(df$pred_name_long, " (", df$Biosample, ")")
+	# The " (biosample)" suffix disambiguates a predictor matching one eQTL tissue
+	# through several prediction biosamples. In the AllMatches aggregate every row
+	# is the synthetic "all_matches" biosample, so the suffix is pure noise.
+	df$key = ifelse(df$Biosample == "all_matches",
+	                df$pred_name_long,
+	                paste0(df$pred_name_long, " (", df$Biosample, ")"))
 
 	# handle multiple matches
 	cp = dplyr::select(df, method, key, hex) %>% distinct() 
