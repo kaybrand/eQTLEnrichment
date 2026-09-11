@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import sys
 from pathlib import Path  # Use pathlib for robust path handling
 import pandas as pd
 from .base import BaseValidator
@@ -78,7 +79,10 @@ class AbsCorrelationValidator(BaseValidator):
             return None
 
         command = [
-            "python", rescue_script_path,
+            # Use the interpreter running this validator, not a bare "python": on this
+            # cluster /usr/bin/python is Python 2.7, which cannot parse the rescue
+            # scripts' f-strings, so every rescue died with a SyntaxError.
+            sys.executable, rescue_script_path,
             str(file_path),
             str(output_path),
             "--source-score-col", self.original_score_col,

@@ -2,6 +2,7 @@
 
 import logging
 import subprocess
+import sys
 import pandas as pd
 from pathlib import Path
 from .base import BaseValidator # This will work when you run as a module
@@ -89,7 +90,10 @@ class pgBoostValidator(BaseValidator):
             return None
 
         command = [
-            "python", rescue_script_path,
+            # Use the interpreter running this validator, not a bare "python": on this
+            # cluster /usr/bin/python is Python 2.7, which cannot parse the rescue
+            # scripts' f-strings, so every rescue died with a SyntaxError.
+            sys.executable, rescue_script_path,
             "--input", str(file_path),
             "--output", str(output_path),
             "--source-score-col", self.original_score_col,
