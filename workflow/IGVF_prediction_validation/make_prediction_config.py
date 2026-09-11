@@ -5,10 +5,9 @@ May 2025
 """
 
 import os
-import synapseclient
-print(f" Synapse client version {synapseclient.__version__}")
-from synapseclient.models import Folder, Project
-from synapseutils import sync
+# synapseclient is imported lazily inside the --sync path only. Building the
+# predictions table from an already-downloaded tree needs no Synapse credentials,
+# and requiring them made the generator unrunnable offline.
 # import gzip
 import pandas as pd
 import numpy as np
@@ -22,8 +21,27 @@ import click
 # Verify format of synced files matches expectations before running (dataset/cluster/predictions nesting)
 # Can be run in eQTLEnv
 
+# Dataset folders that are present in the Synapse sync but must never be benchmarked.
+# "(Archived)Y2_versions" holds the superseded CharacterizationMcGinnis_* tree and
+# "igvf7 (outdated prediction set)" is flagged as outdated by the submitters.
+EXCLUDED_DATASETS = (
+    'Legacy datasets',
+    '(Archived)Y2_versions',
+    'igvf7 (outdated prediction set)',
+)
+
 class DuplicateModelConflict(Exception):
     """Raised when it is unclear which of two files represents the E2G predictions for a particular cell type"""
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
+class DuplicateBiosampleConflict(Exception):
+    """Raised when two dataset/cluster folders would collapse to the same biosample key.
+
+    Biosample keys are dataset-prefixed precisely so this cannot happen silently; if it
+    still does, the tree layout has changed and the table must not be written.
+    """
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
@@ -42,16 +60,25 @@ def configure_predictions(path, column_order):
                      OrderedDicts of model names and file paths.
     """
     predictions = OrderedDict()
-    for dataset in os.listdir(path):
-        if dataset == 'Legacy datasets':
+    for dataset in sorted(os.listdir(path)):
+        if dataset in EXCLUDED_DATASETS:
+            print(f"Skipping excluded dataset {dataset}")
             continue
         dataset_path = os.path.join(path, dataset)
+        # Top level also contains loose files (manifest.csv, SYNAPSE_METADATA_MANIFEST.tsv)
+        if not os.path.isdir(dataset_path):
+            continue
         # datasets level
         print(f"In dataset {dataset_path}...")
         for cluster_path in [str(p) for p in Path(dataset_path).glob('*/') if p.is_dir()]:
             cluster_models = OrderedDict()  # Use OrderedDict here
             print(f"In cluster {cluster_path}:")
             cluster_name = os.path.basename(cluster_path)
+            # Biosample names are NOT unique across datasets (e.g. b_activated_d1 and
+            # b_quiescent each appear under two datasets), so qualify every key with its
+            # dataset. The eQTL pipeline keys on this value, and utils.smk builds a dict
+            # from it, so a collision would silently drop one biosample's predictions.
+            biosample_id = f"{dataset}_{cluster_name}"
 
             # Initialize all columns to empty strings
             for model in column_order:
@@ -60,7 +87,7 @@ def configure_predictions(path, column_order):
             for file in os.listdir(cluster_path):
                 file_path = os.path.join(cluster_path, file)
                 # files level
-                if ("threshold" in file) or ("list" in file) or ('e2g.tsv.gz' not in file) or ("percentile" in file) or ("absolute" in file) or ('boolean' in file):
+                if not is_candidate_prediction_file(file):
                     print(f"\tIgnoring file {file_path}")
                     continue
                 
@@ -79,7 +106,13 @@ def configure_predictions(path, column_order):
                     cluster_models[model] = file_path
                 print(f"\t> Found model {model}")
             # Record models dictionary for this cluster
-            predictions[cluster_name] = cluster_models
+            if biosample_id in predictions:
+                raise DuplicateBiosampleConflict(
+                    f"Biosample key '{biosample_id}' was produced twice. "
+                    f"Second occurrence: {cluster_path}. Dataset-prefixed keys are "
+                    f"expected to be unique; refusing to silently overwrite."
+                )
+            predictions[biosample_id] = cluster_models
 
     return predictions
 
@@ -145,99 +178,177 @@ def print_project_head(project):
             for file_in_folder in folder_in_folder.files:
                 print(f"File in {folder_in_folder.name}: {file_in_folder.name}")
 
+# Method tokens as they appear at the END of a prediction filename, mapped to the
+# method name used throughout the pipeline. Matching is anchored on this trailing
+# token (see extract_model_name) rather than searched anywhere in the filename.
+MODEL_FILENAME_SUFFIXES = {
+    'scE2G_scATAC_powerlaw_v3': 'scE2G_ATAC',
+    'scE2G_multiome_powerlaw_v3': 'scE2G_multiome',
+    'scE2G_multiome_epcot': 'EPCOT',
+    'Open4Gene': 'Open4Gene',
+    'GEEES': 'GEEES',
+    'SCARlink': 'SCARlink',
+    'pgBoost': 'pgBoost',
+    'Cicero': 'Cicero',
+    'Signac': 'Signac',
+    'SCENT': 'SCENT',
+    'ArchR': 'ArchR',
+    'EPCOT': 'EPCOT',
+    'FigR': 'FigR',
+}
+
+# Longest first, so e.g. scE2G_multiome_powerlaw_v3 is tested before any shorter token
+# that might also be a valid suffix of it.
+_SUFFIXES_LONGEST_FIRST = sorted(MODEL_FILENAME_SUFFIXES, key=len, reverse=True)
+
+def strip_prediction_extension(filename):
+    """Return the filename stem with the prediction-file extension removed.
+
+    Handles both `*.e2g.tsv.gz` (most models) and bare `*.tsv.gz` (Open4Gene ships
+    without the `.e2g` infix). Returns None if this is not a gzipped TSV at all.
+    """
+    lowered = filename.lower()
+    if lowered.endswith('.e2g.tsv.gz'):
+        return filename[: -len('.e2g.tsv.gz')]
+    if lowered.endswith('.tsv.gz'):
+        return filename[: -len('.tsv.gz')]
+    return None
+
+def is_candidate_prediction_file(filename):
+    """True if this file could be an unthresholded, standard-format prediction file.
+
+    Only checks the extension. Derived sidecars (`*_thresholded`, `*_threshold0.177`,
+    `*_percentile`, `*_absolute`, `*_boolean_score`, `*_element_list`, `*_gene_list`)
+    are rejected downstream by extract_model_name, because anchoring the method token
+    at the end of the stem means those names simply do not match any known model. That
+    is safer than substring-matching markers like "list" against the whole filename,
+    which would also match anything in the biosample or dataset name.
+    """
+    return strip_prediction_extension(filename) is not None
+
 def extract_model_name(filename):
-    """Returns name of the E2G model used given the file name"""
-    filename = filename.lower()
-    if "scent" in filename:
-        return "SCENT"
-    elif "signac" in filename:
-        return "Signac"
-    elif "cicero" in filename:
-        return "Cicero"
-    elif "archr" in filename:
-        return "ArchR"
-    elif "epcot" in filename:
-        return "EPCOT"
-    elif "figr" in filename:
-        return "FigR"
-    elif "scarlink" in filename:
-        return "SCARlink"
-    elif "pgboost" in filename:
-        return "pgBoost"
-    elif "sce2g" in filename:
-        scE2G_pattern = r'_(scE2G_[^_]+_[^_]+_v\d)\.e2g\.tsv'
-        scE2G_match = re.search(scE2G_pattern, filename)
-        if "scatac" in filename:
-            return "scE2G_ATAC"
-        elif "multiome" in filename:
-            return "scE2G_multiome"
-        elif scE2G_match:
-            return scE2G_match.group(1)
-        else:
-            return 'Unrecognized_Model'
-    else:
+    """Returns name of the E2G model used given the file name.
+
+    The method token is matched as a trailing, underscore-delimited component of the
+    filename stem. Anchoring at the end matters: a plain substring search matches
+    "scent" inside the biosample name "b_quiescent", which misclassified every file in
+    those biosample folders as SCENT and raised DuplicateModelConflict.
+    """
+    stem = strip_prediction_extension(filename)
+    if stem is None:
         return 'Unrecognized_Model'
 
+    lowered_stem = stem.lower()
+    for suffix in _SUFFIXES_LONGEST_FIRST:
+        if lowered_stem.endswith('_' + suffix.lower()):
+            return MODEL_FILENAME_SUFFIXES[suffix]
+
+    return 'Unrecognized_Model'
+
 def read_gtex_tissue_map(tsv_file_path):
+    """Build {biosample_key: "tissue1,tissue2"} from a pairing table.
+
+    Two layouts are accepted:
+
+    1. Legacy wide  - columns `cluster`, `tissue`, where `tissue` is already a
+       comma-separated list and the key is the bare cluster name.
+    2. 2026 long    - columns `Dataset`, `Cluster_2026`, `eQTL_tissue`, one row per
+       (biosample, tissue) pair. Keys are built as `{Dataset}_{Cluster_2026}` to match
+       the dataset-prefixed biosample IDs emitted by configure_predictions, and the
+       tissues for a biosample are collected into one comma-separated value.
+
+    The long layout is what the pipeline ultimately needs anyway: utils.smk's
+    process_biosample_tissue_maps splits GTExTissue on commas and emits one
+    (biosample, tissue) pair per entry.
+    """
     cluster_to_tissue = {}
 
     with open(tsv_file_path, mode='r') as tsv_file:
         reader = csv.DictReader(tsv_file, delimiter='\t')
-        
+
         for row in reader:
             cluster = row['cluster']
             tissue = row['tissue'] if 'tissue' in row else ''
             cluster_to_tissue[cluster] = tissue
-    
+
     return cluster_to_tissue
 
+DEFAULT_PREDICTIONS_DIR = "/scratch/users/kaybrand/E2G_Pillar_Project_predictions_Synapse_09_10_26"
+
+# Baselines that are columns inside the scE2G multiome prediction file rather than
+# separate files. config_methods.tsv distinguishes them purely by score_col
+# (ABC.Score / distance / Kendall), so all three point at the same physical path.
+SCE2G_DERIVED_BASELINES = ('scABC', 'ABC_distanceToTSS', 'Kendall')
+
 @click.command()
-@click.option( # or generate this table automatically 
+@click.option( # or generate this table automatically
     '-s', '--sync', 'sync_please',
     is_flag=True,  # This makes it a boolean flag
     default=False,
     help='If set, Sync from Synapse instead of generating a prediction file'
 )
-def main(sync_please):
-    # Log into Synapse
-    syn = synapseclient.Synapse()
-    syn.login()
-
-    # Sync Synapse E2G predictions Project locally
-    directory_to_sync_project_to = os.path.join("/", "scratch", "users", "kaybrand", "Data")
-    scE2G_results_dir = os.path.join("/", "oak", "stanford", "groups", "engreitz", "Users", "kaybrand", "scE2G", "results")
-    column_order = ['scE2G_multiome', 'scE2G_ATAC', 'pgBoost', 'ArchR', 'Signac', 'Cicero', 'SCENT', 'FigR', 'SCARlink', 'EPCOT']
+@click.option(
+    '-d', '--predictions-dir', 'predictions_dir',
+    type=click.Path(file_okay=False, path_type=Path),
+    default=DEFAULT_PREDICTIONS_DIR,
+    show_default=True,
+    help='Local directory holding the downloaded E2G predictions (dataset/biosample/files).'
+)
+@click.option(
+    '-o', '--output', 'output_table',
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=os.path.join('config', 'predictions.tsv'),
+    show_default=True,
+    help='Where to write the generated predictions config table.'
+)
+@click.option(
+    '-t', '--tissue-map', 'tissue_map_file',
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help='TSV with columns cluster,tissue used to fill GTExTissue. '
+         'Defaults to config/eQTL_tissue_matches.tsv.'
+)
+def main(sync_please, predictions_dir, output_table, tissue_map_file):
+    column_order = ['scE2G_multiome', 'scE2G_ATAC', 'pgBoost', 'ArchR', 'Signac', 'Cicero',
+                    'SCENT', 'FigR', 'SCARlink', 'EPCOT', 'Open4Gene', 'GEEES']
     # Define paths at the module level for reliability
     THIS_SCRIPT_DIR = Path(__file__).resolve().parent
     CONFIG_SCRIPTS_DIR = THIS_SCRIPT_DIR.parent.parent / 'config'
     print(CONFIG_SCRIPTS_DIR)
-    tissue_mapping_config = os.path.join(CONFIG_SCRIPTS_DIR, "eQTL_tissue_matches.tsv")
+    if tissue_map_file is None:
+        tissue_map_file = os.path.join(CONFIG_SCRIPTS_DIR, "eQTL_tissue_matches.tsv")
 
     if sync_please:
-        # project = synapseclient.models.Project(name="E2G predictions", id='syn53469845')
-        # Set the `if_collision` to `keep.local` so that we don't overwrite any files
-        # project.sync_from_synapse(path=DIRECTORY_TO_SYNC_PROJECT_TO, if_collision="keep.local")
-        sync.syncFromSynapse(syn, entity='syn53469845', path=directory_to_sync_project_to, ifcollision="overwrite.local")
-        # print_project_head(project)
-    else:
-        # Create predictions config
-        predictions_df = generate_predictions_config_table(directory_to_sync_project_to, column_order)
+        # Only the sync path needs Synapse credentials.
+        import synapseclient
+        from synapseutils import sync
+        print(f" Synapse client version {synapseclient.__version__}")
+        syn = synapseclient.Synapse()
+        syn.login()
+        sync.syncFromSynapse(syn, entity='syn53469845', path=str(predictions_dir), ifcollision="overwrite.local")
+        return
 
-        # Add the baseline predictors
-        raw_scE2G_prediction_paths = find_raw_baseline_predictions(scE2G_results_dir)
-        print(raw_scE2G_prediction_paths)
-        for baseline in ['scABC', 'Kendall', 'ABC_distanceToTSS']:
-            predictions_df[baseline] = predictions_df.index.map(raw_scE2G_prediction_paths)
+    # Create predictions config
+    predictions_df = generate_predictions_config_table(str(predictions_dir), column_order)
 
-        # Add the gene expression tissue mapping column based on cell names
-        gtex_tissue_map = read_gtex_tissue_map(tissue_mapping_config)
-        predictions_df['GTExTissue'] = predictions_df.index.map(gtex_tissue_map)
+    # Add the baseline predictors. These are columns of the scE2G multiome prediction
+    # file, so they resolve to that same path wherever it exists. Previously these were
+    # looked up in a separate scE2G results tree keyed on old biosample names, which
+    # matches nothing under the current naming and left all three columns empty.
+    for baseline in SCE2G_DERIVED_BASELINES:
+        predictions_df[baseline] = predictions_df['scE2G_multiome']
 
-        # Print for debug
-        print(predictions_df.head())
+    # Add the gene expression tissue mapping column based on cell names
+    gtex_tissue_map = read_gtex_tissue_map(tissue_map_file)
+    predictions_df['GTExTissue'] = predictions_df.index.map(gtex_tissue_map)
 
-        # Save the table
-        predictions_df.to_csv(os.path.join('config', 'predictions.tsv'), sep='\t', index=True)
+    # Print for debug
+    print(predictions_df.head())
+
+    # Save the table
+    os.makedirs(os.path.dirname(os.path.abspath(output_table)), exist_ok=True)
+    predictions_df.to_csv(output_table, sep='\t', index=True)
+    print(f"Wrote {len(predictions_df)} biosamples to {output_table}")
 
     
 
