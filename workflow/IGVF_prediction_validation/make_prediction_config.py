@@ -261,15 +261,30 @@ def read_gtex_tissue_map(tsv_file_path):
     process_biosample_tissue_maps splits GTExTissue on commas and emits one
     (biosample, tissue) pair per entry.
     """
-    cluster_to_tissue = {}
+    cluster_to_tissue = OrderedDict()
 
     with open(tsv_file_path, mode='r') as tsv_file:
         reader = csv.DictReader(tsv_file, delimiter='\t')
+        fieldnames = reader.fieldnames or []
+
+        is_long_format = 'Cluster_2026' in fieldnames and 'eQTL_tissue' in fieldnames
 
         for row in reader:
-            cluster = row['cluster']
-            tissue = row['tissue'] if 'tissue' in row else ''
-            cluster_to_tissue[cluster] = tissue
+            if is_long_format:
+                cluster = (row.get('Cluster_2026') or '').strip()
+                dataset = (row.get('Dataset') or '').strip()
+                tissue = (row.get('eQTL_tissue') or '').strip()
+                if not cluster or not tissue:
+                    continue  # trailing/blank rows
+                key = f"{dataset}_{cluster}" if dataset else cluster
+                existing = cluster_to_tissue.get(key, '')
+                tissues = [t for t in existing.split(',') if t]
+                if tissue not in tissues:
+                    tissues.append(tissue)
+                cluster_to_tissue[key] = ','.join(tissues)
+            else:
+                cluster = row['cluster']
+                cluster_to_tissue[cluster] = row['tissue'] if 'tissue' in row else ''
 
     return cluster_to_tissue
 
