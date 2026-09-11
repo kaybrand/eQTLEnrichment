@@ -76,11 +76,16 @@ main <- function() {
 	recall = data.table::fread(recallTableFile, sep="\t", header=TRUE)
 	recall = dplyr::filter(recall, distance_min == 0, distance_max==30000,
 		is.finite(recall.linking), !is.na(recall.linking), total.variants>20)
-	# remove tissues where sd recall = 0
-	recall_sum = group_by(recall, GTExTissue) %>%
-		summarize(sd_recall = sd(recall.linking)) %>%
-		dplyr::filter(sd_recall>0)
-	recall = dplyr::filter(recall, GTExTissue %in% recall_sum$GTExTissue)
+	# Remove tissues where recall is constant across biosamples -- uninformative for
+	# clustering. Only meaningful with at least two biosamples to vary across: with a
+	# single biosample sd() is NA for every tissue, NA > 0 is NA, and the filter would
+	# silently drop every row and leave an empty table for the rest of the script.
+	if (dplyr::n_distinct(recall$Biosample) > 1) {
+		recall_sum = group_by(recall, GTExTissue) %>%
+			summarize(sd_recall = sd(recall.linking)) %>%
+			dplyr::filter(!is.na(sd_recall), sd_recall>0)
+		recall = dplyr::filter(recall, GTExTissue %in% recall_sum$GTExTissue)
+	}
 
 	recall$Biosample[recall$Biosample=="Cells_EBV-transformed_lymphocytes"] = "Cells_EBV_transformed_lymphocytes"
 	enhSizes = fread(enhSizeFile, sep="\t", header=TRUE) %>% distinct()

@@ -50,6 +50,9 @@ def main():
                         help="Biosample to drop from the all_biosamples variant "
                              "(repeatable). Use for biosamples whose missing models "
                              "would otherwise disqualify those models entirely.")
+    parser.add_argument("--include-biosample", action="append", default=[],
+                        help="Restrict BOTH variants to these biosamples (repeatable). "
+                             "Use to benchmark a single biosample in isolation.")
     parser.add_argument("--prefix", default="predictions_2026",
                         help="Output filename prefix")
     args = parser.parse_args()
@@ -60,6 +63,13 @@ def main():
     # rest would consume full compute and never appear in a tissue map.
     matched = v[v["GTExTissue"].notna() & (v["GTExTissue"].astype(str).str.strip() != "")]
     print(f"Matched biosamples in {args.validated_table}: {len(matched)}")
+
+    if args.include_biosample:
+        unknown = [b for b in args.include_biosample if b not in matched.index]
+        if unknown:
+            sys.exit(f"ERROR: --include-biosample not in the matched set: {unknown}")
+        matched = matched.loc[args.include_biosample]
+        print(f"Restricted to {len(matched)} biosample(s): {list(matched.index)}")
     if matched.empty:
         sys.exit("ERROR: no biosample has a GTExTissue assignment.")
 
