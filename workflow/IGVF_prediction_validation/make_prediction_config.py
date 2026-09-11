@@ -298,6 +298,42 @@ DEFAULT_PREDICTIONS_DIR = "/scratch/users/kaybrand/E2G_Pillar_Project_prediction
 # silently yields an all-NaN column rather than an error.
 SCE2G_DERIVED_BASELINES = ('scABC', 'distanceToTSS', 'Kendall')
 
+def apply_overrides(predictions_df, overrides_file):
+    """Replace individual (biosample, model) cells from an override table.
+
+    Exists so that a one-off path correction is a reviewable, version-controlled
+    row rather than a hand-edit. A cell pasted into the wrong column of a
+    spreadsheet is what silently removed a method from the 2025-10-19 run, so
+    every override is checked here: the biosample and model must already exist in
+    the generated table, and the replacement file must exist on disk.
+    """
+    overrides = pd.read_csv(overrides_file, sep='\t', dtype=str)
+    required = {'biosample', 'model', 'path'}
+    if not required.issubset(overrides.columns):
+        raise click.ClickException(
+            f"{overrides_file} must have columns {sorted(required)}; "
+            f"found {list(overrides.columns)}")
+
+    for _, row in overrides.iterrows():
+        biosample, model, path = (str(row['biosample']).strip(),
+                                  str(row['model']).strip(),
+                                  str(row['path']).strip())
+        if biosample not in predictions_df.index:
+            raise click.ClickException(
+                f"Override biosample '{biosample}' is not in the generated table")
+        if model not in predictions_df.columns:
+            raise click.ClickException(
+                f"Override model '{model}' is not a column of the generated table")
+        if not os.path.isfile(path):
+            raise click.ClickException(
+                f"Override path for {biosample}/{model} does not exist: {path}")
+        previous = predictions_df.at[biosample, model]
+        predictions_df.at[biosample, model] = path
+        print(f"Override {biosample}/{model}:\n    was: {previous or '(empty)'}\n    now: {path}")
+
+    return predictions_df
+
+
 @click.command()
 @click.option( # or generate this table automatically
     '-s', '--sync', 'sync_please',
@@ -327,6 +363,13 @@ SCE2G_DERIVED_BASELINES = ('scABC', 'distanceToTSS', 'Kendall')
          'Defaults to config/eQTL_tissue_matches.tsv.'
 )
 @click.option(
+    '--overrides', 'overrides_file',
+    type=click.Path(dir_okay=False, exists=True, path_type=Path),
+    default=None,
+    help='TSV with columns biosample,model,path[,reason] overriding individual cells '
+         'after generation. Use this instead of hand-editing the table.'
+)
+@click.option(
     '-m', '--matched-only', 'matched_only',
     is_flag=True,
     default=False,
@@ -341,7 +384,8 @@ SCE2G_DERIVED_BASELINES = ('scABC', 'distanceToTSS', 'Kendall')
          'in the run config. Empty columns for models not in this round otherwise '
          'just add noise to the validated table.'
 )
-def main(sync_please, predictions_dir, output_table, tissue_map_file, matched_only, keep_models):
+def main(sync_please, predictions_dir, output_table, tissue_map_file, overrides_file,
+         matched_only, keep_models):
     column_order = ['scE2G_multiome', 'scE2G_ATAC', 'pgBoost', 'ArchR', 'Signac', 'Cicero',
                     'SCENT', 'FigR', 'SCARlink', 'EPCOT', 'Open4Gene', 'GEEES']
     # Define paths at the module level for reliability
@@ -370,6 +414,10 @@ def main(sync_please, predictions_dir, output_table, tissue_map_file, matched_on
     # matches nothing under the current naming and left all three columns empty.
     for baseline in SCE2G_DERIVED_BASELINES:
         predictions_df[baseline] = predictions_df['scE2G_multiome']
+
+    # Apply cell-level path overrides before anything else reads the table
+    if overrides_file:
+        predictions_df = apply_overrides(predictions_df, overrides_file)
 
     # Add the gene expression tissue mapping column based on cell names
     gtex_tissue_map = read_gtex_tissue_map(tissue_map_file)
