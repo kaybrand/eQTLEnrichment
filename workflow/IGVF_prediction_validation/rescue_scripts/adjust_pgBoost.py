@@ -1,8 +1,20 @@
 """
-Add Percentile column to pgBoost predictions
+Prepare a pgBoost-style prediction file for benchmarking.
 (USE eQTL venv to run!)
 July 15, 2025
 Kayla Brand
+
+Two independent jobs:
+
+  --exclude-score-equal N   drop links whose raw score equals N. pgBoost uses
+                            Score == 1 as a saturation sentinel on ~18-19% of its
+                            links, and the submitter asked for those to be excluded.
+
+  Percentile column         computed ONLY when the file does not already have a
+                            usable one. Submitted pgBoost files already carry
+                            percentiles ranked over the non-saturated subset, so
+                            they are preserved untouched. GEEES, which ships no
+                            percentile, gets one computed.
 """
 
 import gzip
@@ -16,13 +28,19 @@ import datetime
 def calculate_percentiles(series):
     """Calculates the fractional rank of each value, on a 0-1 scale.
 
-    This MUST match the scale used by the submitted pgBoost prediction files, whose
-    Percentile column runs 0..1, because config_methods.tsv thresholds it at 0.95.
-    This previously returned 100 * (ranks-1)/(len-1), i.e. 0-100, so any rescued
-    file was silently on a different scale from the submitted ones and a 0.95
-    threshold would have admitted ~99% of pairs instead of the top 5%.
+    Matches the convention the pgBoost submitter used, so a computed column is
+    interchangeable with a submitted one. Two parts to that:
+
+    - Scale is 0-1, not 0-100. config_methods.tsv thresholds Percentile at 0.95,
+      so a 0-100 column would admit ~99% of pairs instead of the top 5%.
+    - Ties take method='min'. Verified against the submitted igvf1/hl60 file: over
+      the 2723066 non-saturated rows, min ranking with (r-1)/(n-1) reproduces the
+      submitted Percentile exactly (max abs difference 5.6e-16), whereas 'ordinal'
+      differs on essentially every row (max 1.1e-02, mean 3.6e-04) and shifts the
+      >= 0.95 selection by 46 links. Ties are not rare here: 2723066 rows carry
+      only 577065 distinct scores, and the largest tie block is 31091 rows.
     """
-    ranks = rankdata(series, method='ordinal')  # Or choose a different method if needed
+    ranks = rankdata(series, method='min')
     denominator = len(series) - 1
     if denominator <= 0:
         # Single-row file: rank is degenerate, call it the top percentile.
@@ -104,12 +122,16 @@ def add_percentile_column(input_file, output_file, sig_fig=5, source_col='Score'
     # Convert 'Score' column to numeric (important for percentile calculation)
     df[source_col] = pd.to_numeric(df[source_col], errors='coerce')
 
-    # Optionally drop links at a sentinel score before ranking. pgBoost assigns
-    # Score == 1 to roughly 18-19% of its links; because those are all tied at the
-    # ceiling and rankdata(method='ordinal') breaks ties arbitrarily, they occupy the
-    # whole top of the distribution and push Percentile >= 0.95 out to ~22% of pairs.
-    # The uploader asked for them to be excluded. Percentiles are recomputed on the
-    # retained rows so the ranking reflects the set actually being benchmarked.
+    # Drop links at a sentinel score. pgBoost assigns Score == 1 to roughly 18-19% of
+    # its links and gives every one of them Percentile == 1 as a sentinel rather than a
+    # computed rank -- confirmed with the submitter. Because they all sit at the
+    # ceiling, leaving them in makes Percentile >= 0.95 select ~22.5% of pairs instead
+    # of the intended top 5%. The submitter asked for them to be excluded.
+    #
+    # Filtering on the raw score, not on Percentile == 1: those are not equivalent.
+    # Percentile == 1 also matches the single highest-scoring NON-saturated link in
+    # every file checked (Score 0.954 / 0.928 / 0.928 across three biosamples), so
+    # filtering on Percentile would discard the best surviving prediction.
     if exclude_score_equal is not None:
         n_before = len(df)
         df = df[df[source_col] != exclude_score_equal].copy()
@@ -118,11 +140,35 @@ def add_percentile_column(input_file, output_file, sig_fig=5, source_col='Score'
         if df.empty:
             raise ValueError(f"All rows had {source_col} == {exclude_score_equal}; nothing to rank")
 
-    # Calculate percentiles
-    df[percentile_col] = calculate_percentiles(df[source_col])
+    # Only compute the percentile when the file does not already carry a usable one.
+    #
+    # The submitted pgBoost percentiles were already ranked over exactly the
+    # non-saturated subset, so after the exclusion above they are the correct ranks
+    # for the retained rows and recomputing them is a no-op at best. Preserving them
+    # keeps the output bit-identical to the submission and removes any chance of a
+    # tie-handling convention drifting apart from the submitter's. Files that ship no
+    # percentile at all -- GEEES, for instance -- still get one computed.
+    existing = pd.to_numeric(df[percentile_col], errors='coerce') if percentile_col in df.columns else None
 
-    # Convert Percentile to string, with the same number of decimal places as the original file
-    df[percentile_col] = df[percentile_col].round(sig_fig).astype(str)
+    if existing is None:
+        print(f"No {percentile_col} column; computing it from {source_col}")
+        df[percentile_col] = calculate_percentiles(df[source_col])
+        # Match the decimal precision of the submitted files
+        df[percentile_col] = df[percentile_col].round(sig_fig).astype(str)
+    elif existing.isna().all():
+        print(f"{percentile_col} present but entirely non-numeric; recomputing from {source_col}")
+        df[percentile_col] = calculate_percentiles(df[source_col])
+        df[percentile_col] = df[percentile_col].round(sig_fig).astype(str)
+    elif existing.isna().any():
+        # Ambiguous: some rows have a percentile and some do not. Guessing either way
+        # (recompute everything, or leave gaps) could silently corrupt the ranking.
+        raise ValueError(
+            f"{percentile_col} is present but has {int(existing.isna().sum())} "
+            f"non-numeric of {len(existing)} retained rows. Refusing to guess whether "
+            f"to preserve or recompute; inspect {input_file}.")
+    else:
+        print(f"Preserving the existing {percentile_col} column "
+              f"({len(existing)} rows, range {existing.min():.6f}..{existing.max():.6f})")
 
     output_file_name = output_file or input_file
     
