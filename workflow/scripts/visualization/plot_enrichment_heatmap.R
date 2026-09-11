@@ -8,6 +8,25 @@ suppressPackageStartupMessages({library(ggplot2)
     
 # load("plot_enrichment_heatmap_09_04_2025.RData")
 
+# Size the canvas from the actual matrix instead of a fixed 8x8 / 10x16.
+#
+# Rows are prediction biosamples and columns are eQTL tissues; both vary widely
+# between runs (1 to ~140 biosamples, up to ~56 tissues). The legend, the 60-degree
+# rotated tissue labels and the margins consume a roughly constant number of inches,
+# so that overhead is ADDED to the per-cell budget rather than divided into it --
+# otherwise small heatmaps lose their panel entirely to the legend and large ones
+# still crush their rows. Bounds keep the output openable in a PDF viewer.
+heatmap_canvas <- function(n_rows, n_cols,
+                           row_in = 0.16, col_in = 0.16,
+                           w_overhead = 3.2, h_overhead = 2.4,
+                           min_w = 6, max_w = 24,
+                           min_h = 4, max_h = 24) {
+	w <- w_overhead + col_in * max(n_cols, 1)
+	h <- h_overhead + row_in * max(n_rows, 1)
+	c(width  = min(max(w, min_w), max_w),
+	  height = min(max(h, min_h), max_h))
+}
+
 main <- function() {
 	# input data
 	enrTableFile = snakemake@input$enrichmentTable # 0-30000kb table
@@ -56,7 +75,8 @@ main <- function() {
 		tissue_dist[is.na(tissue_dist)] <- 0
 		order_tissues =  hclust(tissue_dist, method = "ward.D2")$order
 	} else if (n_tissues == 1) {
-		print(str(tissue_dist))
+		# Nothing to cluster. This previously printed str(tissue_dist), a variable that
+		# only exists in the n_tissues >= 2 branch, so a single-tissue run errored here.
 		order_tissues = 1
 	} else {
 		print("There must be at least 1 tissue")
@@ -141,8 +161,16 @@ main <- function() {
 	enr_lim <- dplyr::filter(enr, p_adjust_enr < p_threshold, nVariantsOverlappingEnhancers / nVariantsGTExTissue > 0.01)
 	max_value <- round(quantile(enr_lim$enrichment, 0.99), 1)
 	max_value <- max(1, max_value)
-	lims = c(0, max_value) 
-	ht = ifelse(length(rownames(M))>50, 16, 8) 
+	lims = c(0, max_value)
+
+	# Count what is actually drawn, not what survived into M: drop_na() above can
+	# remove a biosample from M while it remains a factor level in enr and is still
+	# rendered as a lane.
+	n_rows_plotted = max(nlevels(enr$Biosample), nrow(M), 1)
+	n_cols_plotted = max(nlevels(enr$GTExTissue), ncol(M), 1)
+	canvas = heatmap_canvas(n_rows_plotted, n_cols_plotted)
+	wd = canvas[["width"]]
+	ht = canvas[["height"]]
 
 	# # mark intersections with significant enrichments
 	# enr = mutate(enr, label = ifelse(p_adjust_enr<p_threshold, "*", ""))
@@ -196,8 +224,11 @@ main <- function() {
 
 	assembled = egg::ggarrange(enr_grid, enh_size, var_count, blank, nrow=2, ncol=2, heights=c(2, 0.2), widths=c(2, 0.3))
 
-	ggsave(outFile_solo, just_enr, width=8, height=ht)
-	ggsave(outFile_combined, assembled, width=10, height=ht)
+	ggsave(outFile_solo, just_enr, width=wd, height=ht, limitsize=FALSE)
+	# The withMetrics variant adds the enhancer-size panel on the right (widths 2:0.3)
+	# and the variant-count panel below (heights 2:0.2); grow the canvas by the same
+	# ratios so the heatmap body keeps the cell size computed above.
+	ggsave(outFile_combined, assembled, width=wd*1.15, height=ht*1.10, limitsize=FALSE)
 
 }
 
