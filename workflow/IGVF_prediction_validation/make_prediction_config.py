@@ -326,7 +326,22 @@ SCE2G_DERIVED_BASELINES = ('scABC', 'distanceToTSS', 'Kendall')
     help='TSV with columns cluster,tissue used to fill GTExTissue. '
          'Defaults to config/eQTL_tissue_matches.tsv.'
 )
-def main(sync_please, predictions_dir, output_table, tissue_map_file):
+@click.option(
+    '-m', '--matched-only', 'matched_only',
+    is_flag=True,
+    default=False,
+    help='Keep only biosamples that have at least one eQTL tissue pairing. '
+         'Unmatched biosamples are never benchmarked (utils.smk drops them from the '
+         'tissue maps), so validating them only costs time.'
+)
+@click.option(
+    '--models', 'keep_models',
+    default=None,
+    help='Comma-separated subset of model columns to keep, e.g. the methods listed '
+         'in the run config. Empty columns for models not in this round otherwise '
+         'just add noise to the validated table.'
+)
+def main(sync_please, predictions_dir, output_table, tissue_map_file, matched_only, keep_models):
     column_order = ['scE2G_multiome', 'scE2G_ATAC', 'pgBoost', 'ArchR', 'Signac', 'Cicero',
                     'SCENT', 'FigR', 'SCARlink', 'EPCOT', 'Open4Gene', 'GEEES']
     # Define paths at the module level for reliability
@@ -359,6 +374,25 @@ def main(sync_please, predictions_dir, output_table, tissue_map_file):
     # Add the gene expression tissue mapping column based on cell names
     gtex_tissue_map = read_gtex_tissue_map(tissue_map_file)
     predictions_df['GTExTissue'] = predictions_df.index.map(gtex_tissue_map)
+
+    # Restrict to the columns this round actually benchmarks, keeping GTExTissue last
+    # so the table reads the way the run configs consume it.
+    if keep_models:
+        wanted = [m.strip() for m in keep_models.split(',') if m.strip()]
+        absent = [m for m in wanted if m not in predictions_df.columns]
+        if absent:
+            raise click.ClickException(f"Requested models not in the table: {absent}")
+        predictions_df = predictions_df[wanted + ['GTExTissue']]
+
+    # Drop biosamples with no eQTL pairing. They cannot contribute to any metric --
+    # process_biosample_tissue_maps drops rows with no GTExTissue -- so validating
+    # them costs time (a pgBoost rescue is ~1 min per biosample) for nothing.
+    if matched_only:
+        before = len(predictions_df)
+        has_tissue = predictions_df['GTExTissue'].notna() & \
+            (predictions_df['GTExTissue'].astype(str).str.strip() != '')
+        predictions_df = predictions_df[has_tissue]
+        print(f"Kept {len(predictions_df)} of {before} biosamples with an eQTL tissue pairing")
 
     # Print for debug
     print(predictions_df.head())
