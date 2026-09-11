@@ -3,7 +3,12 @@
 import pandas as pd
 from os.path import join
 
-conda: "mamba"
+# NOTE: a global `conda: "mamba"` directive used to sit here. A top-level conda:
+# directive names an environment FILE, so snakemake >= 9.16 resolves it to
+# workflow/mamba and aborts with FileNotFoundError before the DAG is built. It
+# was never doing anything useful -- choosing the solver is the --conda-frontend
+# CLI flag, not a Snakefile directive -- and all 28 real conda directives are
+# per-rule and point at workflow/envs/eQTLEnv.yml.
 
 # make absolute paths
 config["outDir"] = os.path.join(config["baseDir"], config["outDir"])
