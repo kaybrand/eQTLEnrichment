@@ -29,21 +29,33 @@ variantsByGTExTissue = read.table(varPerGTExTissueFile, header=TRUE, stringsAsFa
 variantsByGTExTissue = dplyr::select(variantsByGTExTissue, tissue, n_all)
 colnames(variantsByGTExTissue) = c("GTExTissue", "nVariantsGTExTissue")
 
+size.threshold = 100 # in bytes, for empty file (same convention as count_matrix_across_thresholds.R)
+
 for (b in 1:length(biosamples)){
 	sample.this = biosamples[b]
 	commonVarPredIntFile = commonVarInt_files[b]
-	commonVarPredInt = read.table(file=commonVarPredIntFile, header=TRUE, stringsAsFactors=FALSE) %>%
-      setNames(c("varChr", "varStart", "varEnd", "rsID", "enhChr", "enhStart", "enhEnd", "Biosample", "TargetGene", "score"))
 
 	commonVarPerBiosample =data.frame(threshold = thresholdSpan$threshold)
 	commonVarPerBiosample$Biosample = sample.this
 	commonVarPerBiosample$nCommonVariantsOverlappingEnhancers = 0
 
-	for (t in 1:nrow(thresholdSpan)){
-		score.thresh = thresholdSpan$threshold[t]
-		commonVar_this = dplyr::filter(commonVarPredInt, score>= score.thresh)
-		count = dplyr::select(commonVar_this, rsID) %>% distinct() %>% nrow()
-		commonVarPerBiosample$nCommonVariantsOverlappingEnhancers[t] = count
+	# An empty intersect file means this biosample overlapped no background variants,
+	# so the count is zero at every threshold -- which the initialization above already
+	# encodes. count_matrix_across_thresholds.R has this guard; without it here,
+	# read.table aborts the whole job with "no lines available in input".
+	if (file.info(commonVarPredIntFile)$size >= size.threshold){
+		# bedtools intersect output is headerless and tab-separated. header=TRUE silently
+		# consumed the first data row, and the missing sep made this whitespace-split,
+		# which would corrupt any field containing a space.
+		commonVarPredInt = read.table(file=commonVarPredIntFile, header=FALSE, stringsAsFactors=FALSE, sep="\t") %>%
+	      setNames(c("varChr", "varStart", "varEnd", "rsID", "enhChr", "enhStart", "enhEnd", "Biosample", "TargetGene", "score"))
+
+		for (t in 1:nrow(thresholdSpan)){
+			score.thresh = thresholdSpan$threshold[t]
+			commonVar_this = dplyr::filter(commonVarPredInt, score>= score.thresh)
+			count = dplyr::select(commonVar_this, rsID) %>% distinct() %>% nrow()
+			commonVarPerBiosample$nCommonVariantsOverlappingEnhancers[t] = count
+		}
 	}
 
 	# enrichment matrix for this biosample

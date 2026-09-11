@@ -25,10 +25,25 @@ countMatrix = read.table(file=countFile, header=TRUE, stringsAsFactors=FALSE)
 commonVarPerBiosample = data.frame(biosamples)%>% setNames(c("Biosample"))
 commonVarPerBiosample$nCommonVariantsOverlappingEnhancers = 0
 
+size.threshold = 100 # in bytes, for empty file (same convention as count_matrix_distance.R)
+
 for (i in 1:length(biosamples)){
   sample.this = biosamples[i]
   commonVarPredIntFile = commonVarInt_files[i]
-  commonVarPredInt = read.table(file=commonVarPredIntFile, header=TRUE, stringsAsFactors=FALSE, sep="\t") %>%
+
+  # An empty intersect file means this biosample's predictions overlapped no
+  # background variants. count_matrix_distance.R already treats that as a zero
+  # count; without the same guard here read.table aborts the entire job with
+  # "no lines available in input", which is how one malformed prediction file
+  # took out every enrichment job for its method on 2025-10-19.
+  if (file.info(commonVarPredIntFile)$size < size.threshold){
+    commonVarPerBiosample$nCommonVariantsOverlappingEnhancers[i] = 0
+    next
+  }
+
+  # bedtools intersect output is headerless, so header=TRUE silently consumed the
+  # first data row (setNames then overwrote the bogus names, hiding the loss).
+  commonVarPredInt = read.table(file=commonVarPredIntFile, header=FALSE, stringsAsFactors=FALSE, sep="\t") %>%
     setNames(c("varChr", "varStart", "varEnd", "rsID", "enhChr", "enhStart", "enhEnd", "Biosample", "TargetGene", "score"))
   counts.this = dplyr::select(commonVarPredInt, rsID) %>% unique() %>% nrow()
 
