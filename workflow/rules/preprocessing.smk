@@ -41,8 +41,30 @@ rule process_predictions:
             cat {input.predFile} | awk '!/^#/' | csvtk cut -t -f ElementChr,ElementStart,ElementEnd,GeneSymbol,{params.scoreCol} | sed 1d | awk 'NF==5{{print}}{{}}' | bedtools sort -i stdin -faidx {params.chrSizes} > {output.predictionsSorted_temp}
         fi
 
+        # Fail here, naming the offending file, instead of emitting an empty result.
+        # `set +o pipefail` above means a csvtk column error ("column X not existed in
+        # file") exits 0, so Snakemake accepts a 20-byte empty gzip as success. That
+        # empty file then survives the count rules (which guard against it) and only
+        # crashes in counts_to_enrichment_*, six rules and one stack trace away from
+        # the real cause. This is what took out all 6 enrichment jobs on 2025-10-19.
+        if [[ ! -s {output.predictionsSorted_temp} ]]; then
+            echo "ERROR: extracted 0 prediction rows from {input.predFile}" >&2
+            echo "  method={wildcards.method} biosample={wildcards.biosample} score_col={params.scoreCol}" >&2
+            echo "  Required columns: ElementChr, ElementStart, ElementEnd, GeneSymbol, {params.scoreCol}" >&2
+            exit 1
+        fi
+
         # invert score if inverted predictor and filter to gene universe and set biosample column
-        Rscript {params.codeDir}/preprocessing/process_predictions.R --input {output.predictionsSorted_temp}  --genes {input.geneUniverse} --biosample {wildcards.biosample} --invert {params.inversePred}  | gzip > {output.predictionsSorted}   
+        Rscript {params.codeDir}/preprocessing/process_predictions.R --input {output.predictionsSorted_temp}  --genes {input.geneUniverse} --biosample {wildcards.biosample} --invert {params.inversePred}  | gzip > {output.predictionsSorted}
+
+        # The gene-universe filter can also empty the file (e.g. a prediction set using
+        # Ensembl IDs where the universe uses symbols), which is equally silent.
+        if [[ $(zcat {output.predictionsSorted} | head -1 | wc -l) -eq 0 ]]; then
+            echo "ERROR: all rows of {input.predFile} were dropped by the gene universe filter" >&2
+            echo "  method={wildcards.method} biosample={wildcards.biosample}" >&2
+            echo "  No GeneSymbol matched {input.geneUniverse}" >&2
+            exit 1
+        fi
         """
 
 # filter eQTLs by PIP and to distal noncoding; filter common variants to distal noncoding
