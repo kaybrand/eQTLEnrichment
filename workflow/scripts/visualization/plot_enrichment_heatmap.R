@@ -53,8 +53,13 @@ main <- function() {
 	enr = left_join(enr, enhSizes, by="Biosample")
 	enr$enhMb = enr$enhBp/1e6
 
-	# Add experiemental data source to enrichment table
-	if (file.exists(metadata_file)) {
+	# Add experiemental data source to enrichment table.
+	# metadataTable is optional: config.get() yields None when the key is absent,
+	# which arrives here as NULL, and file.exists(NULL) is logical(0) -- so a bare
+	# if() on it fails with "argument is of length zero" rather than skipping the
+	# block. Guard the length before testing existence.
+	if (!is.null(metadata_file) && length(metadata_file) == 1 &&
+	    nzchar(metadata_file) && file.exists(metadata_file)) {
 		metadata = fread(metadata_file, sep=',', header=TRUE, select = c('folder_name', 'Dataset', 'SampleSummaryShort'))
 		enr <- left_join(enr,
 			metadata,
