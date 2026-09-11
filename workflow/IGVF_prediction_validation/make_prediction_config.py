@@ -293,7 +293,10 @@ DEFAULT_PREDICTIONS_DIR = "/scratch/users/kaybrand/E2G_Pillar_Project_prediction
 # Baselines that are columns inside the scE2G multiome prediction file rather than
 # separate files. config_methods.tsv distinguishes them purely by score_col
 # (ABC.Score / distance / Kendall), so all three point at the same physical path.
-SCE2G_DERIVED_BASELINES = ('scABC', 'ABC_distanceToTSS', 'Kendall')
+# These names must match the `method` values in the methods config exactly, because
+# utils.smk selects the predictions-table column by method name and a mismatch
+# silently yields an all-NaN column rather than an error.
+SCE2G_DERIVED_BASELINES = ('scABC', 'distanceToTSS', 'Kendall')
 
 @click.command()
 @click.option( # or generate this table automatically
