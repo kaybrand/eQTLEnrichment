@@ -40,6 +40,11 @@ VALIDATOR_MAP = {
     # score threshold, so it is ranked into the top 5% of its own predictions.
     "GEEES": GEEESValidator,
     "SCARlink": SCARlinkValidator,
+    # Signac and Cicero must NOT get AbsCorrelationValidator. Confirmed with their
+    # submitters (2026-09): negative links are not predicted, so they are dropped in
+    # process_predictions.R via the nonneg_only column in the methods config. An
+    # abs() transform would instead promote the most strongly anti-correlated pairs
+    # to the top of the ranking. Leave these commented out.
     # "Signac": AbsCorrelationValidator,
     # "Cicero": AbsCorrelationValidator,
     # "ArchR": AbsCorrelationValidator,

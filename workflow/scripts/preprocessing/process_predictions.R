@@ -40,6 +40,11 @@ main <- function() {
   # those rows in makes them the bottom of the threshold span, so the enrichment-recall
   # curve sweeps through anti-correlated pairs before it ever reaches score 0.
   # Applied before inversion, so it always refers to the sign of the original score.
+  #
+  # Confirmed with the Signac/Cicero submitters (2026-09): negative links are NOT
+  # predicted, and they specifically do NOT want an absolute-value transform. That
+  # is why this drops rows rather than calling abs() -- abs() would promote the most
+  # strongly anti-correlated pairs to the top of the ranking.
   if (drop.negative %in% c("True", "TRUE")){
     df = dplyr::filter(df, score >= 0)
   }
