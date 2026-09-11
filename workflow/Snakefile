@@ -10,7 +10,11 @@ config["outDir"] = os.path.join(config["baseDir"], config["outDir"])
 config["codeDir"] = os.path.join(config["baseDir"], "workflow", "scripts")
 config["envDir"] = os.path.join(config["baseDir"], "workflow", "envs")
 config["scratchDir"] = os.path.join(config["scratchDir"], "Predictions")
-config['validatedPredictionsTable'] = os.path.join(os.path.dirname(config['predictionsTable']), "validated_" + os.path.basename(config['predictionsTable']))
+# NOTE: validation is a manual pre-step, not part of the DAG (see README). A
+# config['validatedPredictionsTable'] entry used to be derived here as
+# "validated_<name>.tsv", but nothing ever read it and main_validation_script.py
+# writes "<name>_validated.tsv" instead, so the two could never have agreed. Point
+# config["predictionsTable"] at the validated table directly.
 
 # read in prediction method config file
 methods_config_file = config["methodsTable"]

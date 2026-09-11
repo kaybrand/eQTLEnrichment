@@ -1,4 +1,4 @@
-# eQTL bechmarking pipeline
+# eQTL benchmarking pipeline
 We developed this "eQTL benchmarking pipeline” to assess whether predictive models of enhancer-gene regulatory interactions could (i) identify enhancers enriched for fine-mapped eQTL variants, and (ii) link those enhancers to their corresponding eQTL target genes. We have applied this pipeline using eQTLs fine-mapped with the Sum of Single Effects (SuSiE) model from the [GTEx V8 resource](https://gtexportal.org/home/downloads/adult-gtex/overview)  and from the [eQTL Catalogue release 7](https://www.ebi.ac.uk/eqtl/Data_access/).
 
 For this analysis, we focus on distal noncoding eQTLs by by filtering out (i) coding sequences, 5′ and 3′ untranslated regions of protein-coding genes, and splice sites (within 10 bp of a intron–exon junction of a protein-coding gene) of protein-coding genes, and (ii) promoters (±250 bp from the gene TSS) of protein-coding genes. We define **enrichment** as (fraction of eQTL variants with PIP >= 50% that overlap predicted enhancers) / (fraction of all 1000G SNPs that overlap predicted enhancers). We define **recall (linking)** as as the fraction of eVariant-eGene pairs overlapping a predicted enhancer linked to the correct eGenes, and **recall (total)** as the fraction of eVariant-eGene pairs with the eVariant overlapping predicted a enhancer.
@@ -21,15 +21,45 @@ Running this pipeline will produce the following plots and corresponding tables,
 ```
 git@github.com:EngreitzLab/eQTLEnrichment.git
 ```
-2. Edit configuration files (see below)
-3. Activate a conda environment with [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) and [snakemake](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) installed.
-4. Run pipeline
+2. Activate a conda environment with [mamba](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html) and [snakemake](https://snakemake.readthedocs.io/en/stable/getting_started/installation.html) installed.
+3. **Download the predictions.** Sync the Synapse E2G predictions project to a local
+   directory. The expected layout is `<dataset>/<biosample>/<prediction files>`.
+```
+python workflow/IGVF_prediction_validation/make_prediction_config.py --sync -d $SCRATCH/<download_dir>
+```
+4. **Generate the predictions config table** from that download. Biosample IDs are
+   emitted as `{dataset}_{biosample}`, because biosample folder names are *not*
+   unique across datasets.
+```
+python workflow/IGVF_prediction_validation/make_prediction_config.py \
+  -d $SCRATCH/<download_dir> \
+  -t config/<tissue_pairings>.tsv \
+  -o config/<predictions>.tsv
+```
+5. **Validate the table** (see below), then **review the result by hand** before
+   launching. This step is deliberately manual: a single wrong cell silently removes
+   a method from the benchmark.
+6. Edit the main config file to point at your predictions table and methods table (see below)
+7. Run pipeline
 ```
 snakemake -j1 --configfile config/config_example.yml --use-conda
 ```
+
 ## Prediction file format validation
-Use the IGVF_prediction_validation package to verify and correct the format of predictions in the predictions configuration table before feeding it to the eQTL pipeline.  
+Use the IGVF_prediction_validation package to verify and correct the format of predictions in the predictions configuration table before feeding it to the eQTL pipeline.
 For models not already represented by the pgBoostValidator, SCARlinkValidator, AbsCorrelationValidator, scE2GValidator, or DefaultValidator, define your own class inheriting from the BaseValidator abstract class.
+
+Validation is a **manual pre-step**; it is not wired into the Snakemake DAG.
+```
+python workflow/IGVF_prediction_validation/main_validation_script.py \
+  -p config/<predictions>.tsv -m config/<methods>.tsv --check-all-rows
+```
+The validated table is written next to the input as `<name>_validated.tsv`, with a
+`NaN` in place of any file that failed. **Inspect those `NaN`s before running**: an
+empty cell means that biosample is dropped for that method, and the pipeline will not
+warn you. Check in particular that every cell points at a file belonging to the right
+biosample *and* the right method — a cell pasted into the wrong column is what caused
+the 2025-10-19 run to lose all of one method's enrichment tables.
 
 ## Config files
 The pipeline requires three config files. The required inputs are outlined below.
@@ -55,13 +85,16 @@ The pipeline requires three config files. The required inputs are outlined below
    - **threshold:** score threshold value to be used to generate boxplots stratified by distance and enrichment heat maps (outputs (1) and (4)). We used the threshold values corresponding to 70% recall from our CRISPR benchmarking pipeline for each model.
    - **score_col:** name of the column in prediction files with the prediction score
    - **color:** hex code specifying what color to use in plots for this method. May be left blank and will be automatically filled.
-   - **inverse_predictor:** `TRUE` if high scores correspond to lower prediction confidence (eg. distance to TSS), otherwise `FALSE`
+   - **inverse_predictor:** `TRUE` if high scores correspond to lower prediction confidence (eg. distance to TSS, or a p-value), otherwise `FALSE`
    - **boolean:** `TRUE` if this is a binary 0 or 1 predictor, otherwise `FALSE`
+   - **nonneg_only:** *(optional)* `TRUE` to treat a negative score as "not predicted" and drop those rows, otherwise `FALSE`. Used for signed-correlation predictors such as Signac and Cicero, where an anti-correlated element-gene pair is not a weak prediction but no prediction at all. Without it those rows form the bottom of the threshold span and the enrichment-recall curve sweeps through them before reaching score 0. Omitting the column entirely is equivalent to `FALSE` for every method.
 
 3. **Predictions config table** - an example file is included at: `config/predicitons_config_example.tsv`. The table contains the following columns (with a header), where each row represents one prediction biosample:
    - **biosample:** name of prediction biosample
    - **GTExTissue:** comma-separated list eQTL biosamples matching this prediciton biosample, where the eQTL biosample name corresponds to the `tissue` column in the eQTL variant input file
-   - columns with names corresponding to each predictive method, with names matching the methods listed in the main config. These columns contain file paths to the enhancer-gene predictions for the corresponding method. The prediction files should be unthresholded and may be gzipped or uncompressed. They must contain the following columns at minimum: `chr`, `start`, `end` (corresponding to the enhancer elements), `TargetGene` (gene symbol), and a score column corresponding to the `score_col` indicated in the methods configuration table.
+   - columns with names corresponding to each predictive method, with names matching the methods listed in the main config. These columns contain file paths to the enhancer-gene predictions for the corresponding method. The prediction files should be unthresholded and may be gzipped or uncompressed. They must contain the following columns at minimum, using the IGVF standard-format names: `ElementChr`, `ElementStart`, `ElementEnd` (corresponding to the enhancer elements), `GeneSymbol` (gene symbol), and a score column corresponding to the `score_col` indicated in the methods configuration table. Lines beginning with `#` are treated as a metadata header and skipped.
+   - **The column name must match the `method` value exactly.** `utils.smk` selects the column by method name, so a mismatch yields an all-`NaN` column and that method silently disappears from the benchmark rather than raising an error.
+   - Biosample names must be unique. Prefer the `{dataset}_{biosample}` IDs produced by `make_prediction_config.py`: several biosample folder names recur across datasets, and a duplicate is silently overwritten.
 
 ## Works-in-progress
 - Edit terminology in configuration, code, file names to not be specific to GTEx (replace "GTEx tissue" with "eQTL biosample")
