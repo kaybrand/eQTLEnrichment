@@ -37,25 +37,68 @@ class pgBoostValidator(BaseValidator):
         self.score_col_name = score_col_name
         self.original_score_col = original_score_col
 
+    def pre_validate_and_reformat(self, file_path: Path) -> tuple[Path | None, bool]:
+        """Always produce the Score == 1 -- excluded, re-ranked twin of this file.
+
+        This is a transformation, not a property that a submitted file might already
+        satisfy, so it cannot live in is_score_valid(). is_score_valid() reads only
+        the first 100000-row chunk unless --check-all-rows is passed, and the
+        saturated links are not in that first chunk of the 2026 submission -- so the
+        check passed, no rescue fired, and the unfiltered original was silently
+        carried into the benchmark. Doing it here means it runs unconditionally.
+
+        Idempotent: adjust_pgBoost.py returns early if the output already exists and
+        is newer than the input, so re-validating is cheap.
+        """
+        if not file_path.name.endswith('.e2g.tsv.gz'):
+            logger.error(f"Cannot reformat: Input file must end with '.e2g.tsv.gz', "
+                         f"got: {file_path.name}")
+            return (None, False)
+
+        output_path = file_path.with_name(
+            file_path.name.replace('.e2g.tsv.gz', '_percentile.e2g.tsv.gz'))
+
+        rescue_script_path = RESCUE_SCRIPTS_DIR / 'adjust_pgBoost.py'
+        if not rescue_script_path.is_file():
+            logger.error(f"Rescue script not found at the expected path: {rescue_script_path}")
+            return (None, False)
+
+        command = [
+            # sys.executable, not "python": /usr/bin/python here is 2.7 and cannot
+            # parse the rescue script's f-strings.
+            sys.executable, str(rescue_script_path),
+            "--input", str(file_path),
+            "--output", str(output_path),
+            "--source-score-col", self.original_score_col,
+            "--percentile-score-col", self.score_col_name,
+            "--exclude-score-equal", str(EXCLUDED_PGBOOST_SCORE)
+        ]
+
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+            logger.info(f"pgBoost: excluded {self.original_score_col} == "
+                        f"{EXCLUDED_PGBOOST_SCORE} links and re-ranked -> {output_path.name}")
+            return (output_path, True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"pgBoost exclusion/re-rank failed for {file_path.name}. "
+                         f"Stderr: {e.stderr}")
+            return (None, False)
+
     def is_score_valid(self, file_path, check_all_rows=False):
         """
-        Checks that Percentile exists, is numeric and lies in [0, 1], AND that no
-        link retains the saturated Score == 1.
+        Checks that Percentile exists, is numeric and lies in [0, 1].
+
+        The Score == 1 exclusion is NOT checked here -- see pre_validate_and_reformat.
+        A chunked check cannot establish the absence of a value across a file unless
+        every chunk is read, and the default is to read only the first one.
         """
         try:
-            # Read the percentile column and the raw score together: a submitted file
-            # can have a perfectly valid Percentile while still containing the
-            # Score == 1 links that must be removed.
-            usecols = [self.score_col_name]
-            if self.original_score_col and self.original_score_col != self.score_col_name:
-                usecols.append(self.original_score_col)
-
             chunk_iterator = pd.read_csv(
                 file_path,
                 sep='\t',
                 comment='#',
                 compression='gzip',
-                usecols=usecols, # This will raise ValueError if a column is missing
+                usecols=[self.score_col_name], # This will raise ValueError if column is missing
                 chunksize=100000,
                 low_memory=False
             )
@@ -72,17 +115,6 @@ class pgBoostValidator(BaseValidator):
                 if not ((score_col >= 0) & (score_col <= 1)).all():
                     logger.warning(f"Validation failed for {file_path}: Percentiles found outside [0, 1] range.")
                     return False
-
-                # Saturated links must already have been removed. Because they are all
-                # tied at the ceiling, leaving them in also distorts every other
-                # percentile: Percentile >= 0.95 admits ~22% of pairs rather than 5%.
-                if self.original_score_col in chunk.columns:
-                    raw = pd.to_numeric(chunk[self.original_score_col])
-                    if (raw == EXCLUDED_PGBOOST_SCORE).any():
-                        logger.info(f"{file_path.name} still contains "
-                                    f"{self.original_score_col} == {EXCLUDED_PGBOOST_SCORE} links. "
-                                    f"Proceeding to rescue to exclude them.")
-                        return False
 
                 # If we're only checking the first part of the file, break after one chunk.
                 if not check_all_rows:
