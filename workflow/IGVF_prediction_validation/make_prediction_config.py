@@ -298,6 +298,15 @@ DEFAULT_PREDICTIONS_DIR = "/scratch/users/kaybrand/E2G_Pillar_Project_prediction
 # silently yields an all-NaN column rather than an error.
 SCE2G_DERIVED_BASELINES = ('scABC', 'distanceToTSS', 'Kendall')
 
+# Model columns that point at ANOTHER model's file, differing only in score_col --
+# the same pattern as the scE2G-derived baselines above, one level removed.
+# Open4Gene_abs is the divergent arm of the Open4Gene sign experiment: identical
+# predictions, scored on |z| (written by adjust_corrFamily.py) rather than the
+# signed z. Mirroring the path here keeps the two arms guaranteed identical in
+# input, so any difference in the benchmark is attributable to the sign handling
+# alone.
+MIRRORED_COLUMNS = {'Open4Gene_abs': 'Open4Gene'}
+
 def apply_overrides(predictions_df, overrides_file):
     """Replace individual (biosample, model) cells from an override table.
 
@@ -414,6 +423,11 @@ def main(sync_please, predictions_dir, output_table, tissue_map_file, overrides_
     # matches nothing under the current naming and left all three columns empty.
     for baseline in SCE2G_DERIVED_BASELINES:
         predictions_df[baseline] = predictions_df['scE2G_multiome']
+
+    # Columns that mirror another model's file (see MIRRORED_COLUMNS)
+    for dst, src in MIRRORED_COLUMNS.items():
+        if src in predictions_df.columns:
+            predictions_df[dst] = predictions_df[src]
 
     # Apply cell-level path overrides before anything else reads the table
     if overrides_file:

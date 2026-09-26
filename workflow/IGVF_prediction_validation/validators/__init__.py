@@ -1,7 +1,7 @@
 from .base import BaseValidator
 from .pgboost_validator import pgBoostValidator
 from .default_validator import DefaultValidator
-from .correlation_validator import AbsCorrelationValidator
+from .correlation_validator import AbsCorrelationValidator, DivergentAbsValidator
 from .scarlink_validator import SCARlinkValidator
 from .sce2g_validator import scE2GValidator
 from .geees_validator import GEEESValidator
@@ -15,5 +15,6 @@ __all__ = [
     'AbsCorrelationValidator',
     'SCARlinkValidator',
     'scE2GValidator',
-    'GEEESValidator'
+    'GEEESValidator',
+    'DivergentAbsValidator'
 ]

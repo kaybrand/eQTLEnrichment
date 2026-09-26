@@ -26,6 +26,7 @@ from validators import (
     pgBoostValidator,
     SCARlinkValidator,
     AbsCorrelationValidator,
+    DivergentAbsValidator,
     DefaultValidator,
     scE2GValidator,
     GEEESValidator
@@ -39,6 +40,12 @@ VALIDATOR_MAP = {
     # GEEES ships a raw positive Score with no Percentile column and no published
     # score threshold, so it is ranked into the top 5% of its own predictions.
     "GEEES": GEEESValidator,
+    # Two arms of the Open4Gene sign experiment, both reading the same files:
+    #   Open4Gene      thresholds the signed z directly (positive-only)
+    #   Open4Gene_abs  scores |z|, so anti-associated links can also be predicted
+    # v2.0 declares "# ScoreType: divergent", which is what adjust_corrFamily.py
+    # keys on to write the abs column.
+    "Open4Gene_abs": DivergentAbsValidator,
     "SCARlink": SCARlinkValidator,
     # Signac and Cicero must NOT get AbsCorrelationValidator. Confirmed with their
     # submitters (2026-09): negative links are not predicted, so they are dropped in
@@ -133,7 +140,7 @@ def process_table(df_table, config, validator_map, check_all_rows=False, verbose
             ValidatorClass = validator_map.get(model_name, DefaultValidator)
 
             try:
-                if ValidatorClass in [AbsCorrelationValidator, pgBoostValidator, SCARlinkValidator, GEEESValidator]:
+                if ValidatorClass in [AbsCorrelationValidator, DivergentAbsValidator, pgBoostValidator, SCARlinkValidator, GEEESValidator]:
                     validator_to_use = ValidatorClass(
                         score_col_name=score_col_name,
                         original_score_col=original_score_col
