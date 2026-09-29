@@ -42,10 +42,15 @@ for (i in 1:length(biosamples)){
       setNames(c("varChr", "varStart", "varEnd", "variantID", "gene", "GTExTissue", "PIP", "distance_bin",
                  "enhChr", "enhStart", "enhEnd", "Biosample", "TargetGene", "score"))
     # filter to distance threshold and select columns
+    # "all distances" (30000) means don't filter by distance_bin -- the score
+    # filter still applies, same as every other bin. Previously this branch
+    # skipped score.thresh entirely, so the 0-30000Kb bin counted overlap with
+    # any scored prediction regardless of threshold.
     if (distance.this==30000){ # "all variants" category
-      variantsInt = dplyr::select(variantsInt, variantID, GTExTissue, Biosample)
+      variantsInt = dplyr::filter(variantsInt, score>=score.thresh) %>%
+        dplyr::select(variantID, GTExTissue, Biosample)
     } else{
-      variantsInt = dplyr::filter(variantsInt, score>=score.thresh, distance_bin==distance.this) %>% 
+      variantsInt = dplyr::filter(variantsInt, score>=score.thresh, distance_bin==distance.this) %>%
         dplyr::select(variantID, GTExTissue, Biosample)
     }
 
