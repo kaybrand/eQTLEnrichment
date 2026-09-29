@@ -45,7 +45,11 @@ for (i in 1:length(biosamples)){
   # first data row (setNames then overwrote the bogus names, hiding the loss).
   commonVarPredInt = read.table(file=commonVarPredIntFile, header=FALSE, stringsAsFactors=FALSE, sep="\t") %>%
     setNames(c("varChr", "varStart", "varEnd", "rsID", "enhChr", "enhStart", "enhEnd", "Biosample", "TargetGene", "score"))
-  counts.this = dplyr::select(commonVarPredInt, rsID) %>% unique() %>% nrow()
+  # Match the numerator (count_matrix_distance.R): only score>=score.thresh rows count
+  # as a "predicted enhancer". Without this filter, the denominator used every scored
+  # link regardless of threshold, so enrichment compared a thresholded numerator against
+  # an unthresholded denominator.
+  counts.this = dplyr::filter(commonVarPredInt, score>=score.thresh) %>% dplyr::select(rsID) %>% unique() %>% nrow()
 
   commonVarPerBiosample$nCommonVariantsOverlappingEnhancers[i] = counts.this
 }
