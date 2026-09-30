@@ -150,18 +150,51 @@ rule plot_variants_per_tissue:
 	script:
 		os.path.join(config["codeDir"], "visualization", "plot_number_variants.R")
 
-# heatmaps
-rule plot_enrichment_heatmaps:
+# heatmaps -- split into two clearly-labeled products (see plot_enrichment_heatmap.R
+# header and determine_candidate_universe_groups() in utils.smk):
+#   thresholded model:  this method's own thresholded predictions, one per method.
+#   candidate universe: the unthresholded candidate element-gene set, one per
+#                        distinct universe (methods sharing one collapse into a
+#                        single plot named for all of them).
+rule plot_enrichment_heatmaps_thresholded:
 	input:
 		enrichmentTable = os.path.join(config["outDir"], "{method}", "enrichmentTables", "enrichmentTable.0to30000Kb.tsv"),
 		enhancerSizes =  os.path.join(config["outDir"], "{method}", "intermediate", "basesPerEnhancerSet.tsv"),
 		biosample_tissue_map = os.path.join(config["outDir"], "{method}", "intermediate", "GTExTissueBiosampleMap.tsv")
 	params:
+		mode = "thresholded",
+		method = lambda wildcards: wildcards.method,
+		methodsTable = config["methodsTable"],
 		p_threshold = config["thresholdPval"],
-		metadata = config.get("metadataTable")
+		metadata = config.get("metadataTable"),
+		tissueOrder = config.get("heatmapTissueOrder", "nVariants")
 	output:
-		outFile_combined =  os.path.join(config["outDir"], "plots", "enrichmentHeatmaps", "{method}.enrichmentHeatmap.withMetrics.pdf"),
-		outFile_alone = os.path.join(config["outDir"], "plots", "enrichmentHeatmaps", "{method}.enrichmentHeatmap.pdf")
+		outFile_combined =  os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_thresholdedModel", "{method}.thresholdedModel.enrichmentHeatmap.withMetrics.pdf"),
+		outFile_alone = os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_thresholdedModel", "{method}.thresholdedModel.enrichmentHeatmap.pdf")
+	resources:
+		mem_mb = determine_mem_mb
+	conda:
+		os.path.join(config["envDir"], "eQTLEnv.yml")
+	script:
+		os.path.join(config["codeDir"], "visualization", "plot_enrichment_heatmap.R")
+
+rule plot_enrichment_heatmaps_candidateUniverse:
+	input:
+		# Any group member works: by construction they share identical candidate
+		# element-gene coordinates (and therefore identical enhancer-set bp), so
+		# the representative's own tables already speak for the whole group.
+		enrichmentTable = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "enrichmentTables", "enrichmentTable.0to30000Kb.tsv"),
+		enhancerSizes = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "intermediate", "basesPerEnhancerSet.tsv"),
+		biosample_tissue_map = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "intermediate", "GTExTissueBiosampleMap.tsv")
+	params:
+		mode = "candidateUniverse",
+		memberMethods = lambda wildcards: sorted(UNIVERSE_GROUP_MEMBERS[wildcards.universeGroup]),
+		p_threshold = config["thresholdPval"],
+		metadata = config.get("metadataTable"),
+		tissueOrder = config.get("heatmapTissueOrder", "nVariants")
+	output:
+		outFile_combined = os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_candidateUniverse", "{universeGroup}.candidateUniverse.enrichmentHeatmap.withMetrics.pdf"),
+		outFile_alone = os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_candidateUniverse", "{universeGroup}.candidateUniverse.enrichmentHeatmap.pdf")
 	resources:
 		mem_mb = determine_mem_mb
 	conda:
