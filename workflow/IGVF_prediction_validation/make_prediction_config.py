@@ -288,8 +288,6 @@ def read_gtex_tissue_map(tsv_file_path):
 
     return cluster_to_tissue
 
-DEFAULT_PREDICTIONS_DIR = "/scratch/users/kaybrand/E2G_Pillar_Project_predictions_Synapse_09_10_26"
-
 # Baselines that are columns inside the scE2G multiome prediction file rather than
 # separate files. config_methods.tsv distinguishes them purely by score_col
 # (ABC.Score / distance / Kendall), so all three point at the same physical path.
@@ -353,9 +351,9 @@ def apply_overrides(predictions_df, overrides_file):
 @click.option(
     '-d', '--predictions-dir', 'predictions_dir',
     type=click.Path(file_okay=False, path_type=Path),
-    default=DEFAULT_PREDICTIONS_DIR,
-    show_default=True,
-    help='Local directory holding the downloaded E2G predictions (dataset/biosample/files).'
+    required=True,
+    help='Local directory holding the downloaded E2G predictions (dataset/biosample/files). '
+         'With --sync, the directory to download into.'
 )
 @click.option(
     '-o', '--output', 'output_table',
@@ -468,19 +466,3 @@ def main(sync_please, predictions_dir, output_table, tissue_map_file, overrides_
 
 if __name__ ==  "__main__":
     main()
-
-    # print("Testing main validation script")
-    # file_path = Path("/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset4/imac_precursor/CharacterizationMcGinnis_Dataset4_imac_precursor_ArchR.e2g.tsv.gz")
-    # validator_to_use = AbsCorrelationValidator(score_col_name="abs_Score", original_score_col="Score")
-    # process_prediction_file(file_path, validator_to_use, False, False)
-
-    # TESTED SCARlink: file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset10/K562-CRISPRi/CharacterizationMcGinnis_Dataset10_K562_SCARlink.e2g.tsv.gz"
-    # boolean_score.e2g.tsv.gz file passes all checks
-    # TESTED corrFamily: file_path = "/scratch/users/kaybrand/Data/GM12878_10XMultiome/GM12878/GM12878_10XMultiome_GM12878_ArchR.e2g.tsv.gz" # Need to take abs value
-    # TESTED corrFamily with finished file, passed all checks -> file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset2/teloHAEC-24hr/CharacterizationMcGinnis_Dataset2_teloHAEC-24hr_ArchR_absolute.e2g.tsv.gz"
-    # TESTED pgBoost Percentile file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset9/D6/CharacterizationMcGinnis_Dataset9_D6_pgBoost_percentile.e2g.tsv.gz"
-    # TESTED pgBoost rescue: file_path = "/scratch/users/kaybrand/Data/CharacterizationMcGinnis_Dataset6/S6_2D/CharacterizationMcGinnis_Dataset6_S6_2D_pgBoost.e2g.tsv.gz"
-    # TESTED scE2G reformat to get scE2G Multiome core named columns - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/encode_e2g_predictions.tsv.gz"
-    # TESTED - passed original - scE2G reformat on something that is already correctly reformatted (for ABC) - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/scE2G_predictions_for_eQTL_reformated.e2g.tsv.gz"
-    # TESTED - passed reformatted - scE2G family reformat to get something else, like Kendall score - file_path = "/oak/stanford/groups/engreitz/Users/kaybrand/scE2G/results/CharacterizationMcGinnis_Dataset1/HUDEP2/multiome_powerlaw_v3/encode_e2g_predictions.tsv.gz"
-

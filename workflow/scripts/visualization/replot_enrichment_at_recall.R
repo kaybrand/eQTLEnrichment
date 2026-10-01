@@ -14,7 +14,7 @@
 ##   Rscript workflow/scripts/visualization/replot_enrichment_at_recall.R \
 ##     --table results/<run>/plots/enrichmentAtRecall/enrichments.Recall0.05.GTExTissueAllMatches.tsv \
 ##     --exclude scE2G_ATAC --recall 0.05 \
-##     --methods-table config/config_methods_IGVF_Annual_Meeting_2026.tsv \
+##     --methods-table config/config_methods.tsv \
 ##     --out <out.pdf> --out-sign <pairwise.tsv>
 
 suppressPackageStartupMessages({

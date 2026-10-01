@@ -46,7 +46,6 @@ vignettes/*.pdf
 
 .snakemake/
 tempData/
-.baton/
 # Local, machine-specific inputs and derived tables (predictions tables,
 # tissue-pairing worksheets). Regenerable or user-specific; not shared.
 config/local/

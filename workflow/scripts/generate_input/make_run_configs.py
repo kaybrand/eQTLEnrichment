@@ -53,7 +53,7 @@ def main():
     parser.add_argument("--include-biosample", action="append", default=[],
                         help="Restrict BOTH variants to these biosamples (repeatable). "
                              "Use to benchmark a single biosample in isolation.")
-    parser.add_argument("--prefix", default="predictions_2026",
+    parser.add_argument("--prefix", default="predictions",
                         help="Output filename prefix")
     args = parser.parse_args()
 
