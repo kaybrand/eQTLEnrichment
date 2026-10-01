@@ -24,7 +24,11 @@ rule process_predictions:
         inversePred = lambda wildcards: methods_config.loc[wildcards.method, "inverse_predictor"],
         # Optional column: methods configs that predate it simply get FALSE.
         dropNegative = lambda wildcards: (methods_config.loc[wildcards.method, "nonneg_only"]
-                                          if "nonneg_only" in methods_config.columns else "FALSE")
+                                          if "nonneg_only" in methods_config.columns else "FALSE"),
+        # threshold is already negated for inverse predictors, matching column 6
+        threshold = lambda wildcards: methods_config.loc[wildcards.method, "threshold"],
+        inverted = lambda wildcards: 1 if is_config_true(methods_config.loc[wildcards.method, "inverse_predictor"]) else 0,
+        methodsTable = config["methodsTable"]
     output:
         predictionsSorted_temp = temp(os.path.join(config["outDir"], "{method}", "biosamples", "{biosample}", "enhancerPredictions.sorted.tsv")),
         predictionsSorted = (os.path.join(config["outDir"], "{method}", "biosamples", "{biosample}", "enhancerPredictions.sorted.bed.gz"))
@@ -66,6 +70,20 @@ rule process_predictions:
             echo "ERROR: all rows of {input.predFile} were dropped by the gene universe filter" >&2
             echo "  method={wildcards.method} biosample={wildcards.biosample}" >&2
             echo "  No GeneSymbol matched {input.geneUniverse}" >&2
+            exit 1
+        fi
+
+        # A threshold that keeps no links (wrong scale, wrong sign, wrong score
+        # column) otherwise only surfaces as an empty-data error many rules later.
+        # Column 6 is the score, negated for inverse predictors like the threshold.
+        if ! zcat {output.predictionsSorted} | awk -v t={params.threshold} '$6 >= t {{found=1; exit}} END {{exit !found}}'; then
+            range=$(zcat {output.predictionsSorted} | awk -v inv={params.inverted} 'NR==1 {{lo=$6; hi=$6}} {{if ($6<lo) lo=$6; if ($6>hi) hi=$6}} END {{if (inv) print (-hi) " to " (-lo); else print lo " to " hi}}')
+            if [[ {params.inverted} -eq 1 ]]; then rule="{params.scoreCol} <= $(awk -v t={params.threshold} 'BEGIN {{print -t}}')"; else rule="{params.scoreCol} >= {params.threshold}"; fi
+            echo "ERROR: no {wildcards.method} links in {input.predFile} pass the threshold." >&2
+            echo "  method={wildcards.method} biosample={wildcards.biosample}" >&2
+            echo "  threshold rule: $rule (from {params.methodsTable})" >&2
+            echo "  {params.scoreCol} in this file (after nonneg_only and gene-universe filters) ranges $range" >&2
+            echo "  Check the threshold's scale and sign, inverse_predictor, and score_col for this method." >&2
             exit 1
         fi
         """

@@ -63,6 +63,8 @@ biosample *and* the right method — a cell pasted into the wrong column is what
 the 2025-10-19 run to lose all of one method's enrichment tables.
 
 ## Config files
+
+**Config checks.** When the pipeline starts (including `snakemake -n`), it checks the three config files and every prediction file's header, and stops with a numbered list of all problems before running any job. It checks: each listed method has a methods-table row and a predictions-table column; thresholds are numbers; `boolean`, `inverse_predictor` and `nonneg_only` are `TRUE`/`FALSE`; an `inverse_predictor` threshold is entered as a positive value in the score's own units; a `boolean` predictor's threshold is 1; `geneUniverse` files and prediction files exist; each prediction file has `ElementChr`, `ElementStart`, `ElementEnd`, `GeneSymbol` and its `score_col`; biosample names are unique; and each method has at least one biosample paired with an eQTL tissue. Whether a threshold keeps any links can only be known by reading the whole file, so that check runs in `process_predictions`, one of the first jobs, which stops with the observed score range if no link passes.
 The pipeline requires three config files. The required inputs are outlined below.
 1. **Main config file** - an example file is included at: `config/config_example.yml`. The following fields are required:
 	- **outDir:** output directory name
@@ -94,8 +96,8 @@ The pipeline requires three config files. The required inputs are outlined below
    - **biosample:** name of prediction biosample
    - **GTExTissue:** comma-separated list eQTL biosamples matching this prediciton biosample, where the eQTL biosample name corresponds to the `tissue` column in the eQTL variant input file
    - columns with names corresponding to each predictive method, with names matching the methods listed in the main config. These columns contain file paths to the enhancer-gene predictions for the corresponding method. The prediction files should be unthresholded and may be gzipped or uncompressed. They must contain the following columns at minimum, using the IGVF standard-format names: `ElementChr`, `ElementStart`, `ElementEnd` (corresponding to the enhancer elements), `GeneSymbol` (gene symbol), and a score column corresponding to the `score_col` indicated in the methods configuration table. Lines beginning with `#` are treated as a metadata header and skipped.
-   - **The column name must match the `method` value exactly.** `utils.smk` selects the column by method name, so a mismatch yields an all-`NaN` column and that method silently disappears from the benchmark rather than raising an error.
-   - Biosample names must be unique. Prefer the `{dataset}_{biosample}` IDs produced by `make_prediction_config.py`: several biosample folder names recur across datasets, and a duplicate is silently overwritten.
+   - **The column name must match the `method` value exactly.** The pipeline stops at startup if a listed method has no matching column.
+   - Biosample names must be unique. Prefer the `{dataset}_{biosample}` IDs produced by `make_prediction_config.py`: several biosample folder names recur across datasets.
 
 ## Known limitations
 

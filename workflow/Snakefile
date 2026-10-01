@@ -25,6 +25,10 @@ config["scratchDir"] = os.path.join(config["scratchDir"], "Predictions")
 methods_config_file = config["methodsTable"]
 methods_config = pd.read_table(methods_config_file, na_values="").fillna("None").set_index("method", drop=False)
 
+# Fail now, listing every config problem, rather than deep in the DAG.
+include: "./rules/config_checks.smk"
+check_config_inputs(methods_config, config)
+
 def is_config_true(value):
     """Interpret a boolean cell from the methods config table.
 
