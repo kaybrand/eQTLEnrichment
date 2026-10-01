@@ -145,6 +145,8 @@ if (this_tissue == "AllMatches") {
     counts = fread(counts_files[i], sep = "\t")
     counts = dplyr::filter(counts, GTExTissue == this_tissue, Biosample %in% biosamples_m)
 
+    # As with all_matches, this CI treats the pooled pairs as independent; they
+    # are not (README: Known limitations).
     # n1 and n2 are summed along with x1 and x2, as in the all_matches aggregate.
     # Pairing one biosample's n1 with a summed x1 lets x1 exceed n1, and the SE
     # then goes NaN.

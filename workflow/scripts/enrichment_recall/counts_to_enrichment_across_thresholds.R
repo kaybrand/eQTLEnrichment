@@ -74,6 +74,7 @@ for (b in 1:length(biosamples)){
 }
 
 ## compute aggregate enrichment for matching tissues/biosamples across thresholds
+# CIs/p-values below treat the summed pairs as independent; they are not (README: Known limitations).
 map = fread(map, sep="\t", header=TRUE)
 map$key = paste0(map$tissue, ".", map$biosample)
 

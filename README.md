@@ -97,6 +97,16 @@ The pipeline requires three config files. The required inputs are outlined below
    - **The column name must match the `method` value exactly.** `utils.smk` selects the column by method name, so a mismatch yields an all-`NaN` column and that method silently disappears from the benchmark rather than raising an error.
    - Biosample names must be unique. Prefer the `{dataset}_{biosample}` IDs produced by `make_prediction_config.py`: several biosample folder names recur across datasets, and a duplicate is silently overwritten.
 
+## Known limitations
+
+### Pooled statistics treat matched pairs as independent
+The "AllMatches" results and the pooled per-tissue curves in the enrichment-recall plots sum counts over every matched (eQTL tissue, prediction biosample) pair at each score threshold. For each pair, `x1` is the tissue's eVariants that overlap the biosample's enhancers, `n1` is the tissue's eVariants, `x2` is the background SNPs that overlap the same enhancers, and `n2` is all background SNPs. Then:
+- enrichment = (Σx1 / Σn1) / (Σx2 / Σn2)
+- recall = Σ(eVariant-eGene pairs linked to the correct gene) / Σ(eVariant-eGene pairs)
+- the 95% CI uses SE(log enrichment) = sqrt((n1−x1)/(x1·n1) + (n2−x2)/(x2·n2)) on the summed counts, the p-value is a hypergeometric test on the same sums, and model-to-model comparisons at a fixed recall use a z-test built from those SEs.
+
+These formulas treat the summed counts as independent draws, and they are not. A tissue matched to k biosamples contributes the same eVariants k times. The same background SNPs are reused in every pair. Related biosamples share many enhancers, and eQTL tissues share eVariants. The effective sample size is therefore smaller than the summed counts, so pooled CIs are too narrow and pooled p-values too small. The pooled point estimates themselves are unaffected. Models scored on the same variants also give correlated estimates, which the model-to-model z-test ignores. Read pooled error bars and p-values as optimistic until this is resolved.
+
 ## Works-in-progress
 - Edit terminology in configuration, code, file names to not be specific to GTEx (replace "GTEx tissue" with "eQTL biosample")
 - Implement benchmarking of groups of prediction biosamples against a single eQTL biosamples to better map to hetergenous tissues
