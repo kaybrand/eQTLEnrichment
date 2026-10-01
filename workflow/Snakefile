@@ -78,6 +78,12 @@ GTExTissues_plus_all = GTExTissues_matched + ["AllMatches"]
 config["distances_min"] = [0] + config["distances"][0:-1] + [0]
 config["distances_max"] = config["distances"] + [30000]
 
+# Keeps "count_matrix.0to30000Kb.candidateUniverse.tsv" from also matching the
+# thresholded "count_matrix.{distance_min}to{distance_max}Kb.tsv" pattern.
+wildcard_constraints:
+    distance_min = r"\d+",
+    distance_max = r"\d+"
+
 include: "./rules/preprocessing.smk"
 include: "./rules/recall.smk"
 include: "./rules/enrichment.smk"

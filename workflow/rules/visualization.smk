@@ -183,8 +183,8 @@ rule plot_enrichment_heatmaps_candidateUniverse:
 		# Any group member works: by construction they share identical candidate
 		# element-gene coordinates (and therefore identical enhancer-set bp), so
 		# the representative's own tables already speak for the whole group.
-		enrichmentTable = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "enrichmentTables", "enrichmentTable.0to30000Kb.tsv"),
-		enhancerSizes = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "intermediate", "basesPerEnhancerSet.tsv"),
+		enrichmentTable = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "enrichmentTables", "enrichmentTable.0to30000Kb.candidateUniverse.tsv"),
+		enhancerSizes = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "intermediate", "basesPerEnhancerSet.candidateUniverse.tsv"),
 		biosample_tissue_map = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "intermediate", "GTExTissueBiosampleMap.tsv")
 	params:
 		mode = "candidateUniverse",

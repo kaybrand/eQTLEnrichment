@@ -19,11 +19,10 @@ suppressPackageStartupMessages({library(ggplot2)
 #                         determine_candidate_universe_groups() in utils.smk --
 #                         collapse into one plot named for all of them).
 #
-# Before this split, the single enrichmentHeatmap.pdf always read the
-# "0-30000Kb" (all-distances) enrichmentTable, which -- prior to the two
-# score-threshold fixes in this branch -- was implicitly a candidate-universe
-# comparison despite README.md describing it as thresholded. The two modes
-# here are that same code path, explicit about which one it is.
+# The two modes read different tables: "thresholded" reads
+# enrichmentTable.0to30000Kb.tsv (score >= the method threshold), and
+# "candidateUniverse" reads enrichmentTable.0to30000Kb.candidateUniverse.tsv
+# (no score cutoff). This script only labels them; it does not threshold.
 
 # Size the canvas from the actual matrix instead of a fixed 8x8 / 10x16.
 #
