@@ -45,8 +45,12 @@ def is_config_true(value):
         return value.strip().lower() == "true"
     return bool(value)
 
-#print(pd.concat([methods_config['threshold'], methods_config['inverse_predictor']], axis=1))
-methods_config['threshold'] = [(-1)*float(thresh) if is_config_true(inverse) else thresh
+def has_threshold(value):
+    return not (str(value).strip() in ("", "None", "nan") or pd.isna(value))
+
+# Inverse predictors are compared as -score >= -threshold. A blank threshold
+# becomes NaN: the method then appears only in threshold-free outputs.
+methods_config['threshold'] = [((-1)*float(thresh) if is_config_true(inverse) else float(thresh)) if has_threshold(thresh) else float("nan")
                                 for thresh,inverse in zip(methods_config['threshold'], methods_config['inverse_predictor'])
                                 ]
 
@@ -59,6 +63,10 @@ include: "./rules/utils.smk"
 # Add biosample paths to method config
 methods_config = add_biosamples_and_files_to_config(methods_config, config)
 methods_config = process_biosample_tissue_maps(methods_config, config)
+
+# Methods with a threshold get the thresholded outputs (thresholded enrichment
+# heatmaps, recall heatmaps, distance-stratified comparisons, report tables).
+THRESHOLDED_METHODS = [m for m in config["methods"] if has_threshold(methods_config.loc[m, "threshold"])]
 
 # Group methods by candidate element-gene universe, so the candidate-universe
 # enrichment heatmap plots each distinct universe once instead of once per
@@ -97,14 +105,14 @@ include: "./rules/visualization.smk"
 rule all:
     input:
         nVar = os.path.join(config["outDir"], "plots", "variantsPerTissue.pdf"),
-        distance_comparison = os.path.join(config["outDir"], "plots", "thresholdedPerformanceComparison.pdf"),
-        scatter = os.path.join(config["outDir"], "plots", "allMatchedThresholdedPerformance.scatter.pdf"),
-        allMetrics = os.path.join(config["outDir"], "plots", "allThresholdedEnrichmentRecall.byDistance.pdf"),
+        thresholdedComparisons = [os.path.join(config["outDir"], "plots", f) for f in
+                                  ("thresholdedPerformanceComparison.pdf", "allMatchedThresholdedPerformance.scatter.pdf",
+                                   "allThresholdedEnrichmentRecall.byDistance.pdf")] if THRESHOLDED_METHODS else [],
         enrichmentRecallCurves = [os.path.join(config["outDir"],  "plots", "enrichmentRecall",  f"enrichmentRecall.GTExTissue{tissue}.pdf") for tissue in GTExTissues_plus_all],
         enrichmentAtRecall = [os.path.join(config["outDir"],  "plots", "enrichmentAtRecall",  f"enrichments.Recall{recall}.GTExTissue{tissue}.pdf") for tissue in GTExTissues_plus_all for recall in config["recalls"]],
-        enrHeatmapsThresholded = [os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_thresholdedModel", f"{method}.thresholdedModel.enrichmentHeatmap.pdf") for method in config["methods"]],
+        enrHeatmapsThresholded = [os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_thresholdedModel", f"{method}.thresholdedModel.enrichmentHeatmap.pdf") for method in THRESHOLDED_METHODS],
         enrHeatmapsCandidateUniverse = [os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_candidateUniverse", f"{label}.candidateUniverse.enrichmentHeatmap.pdf") for label in UNIVERSE_GROUP_MEMBERS],
-        recallHeatmaps = [os.path.join(config["outDir"], "plots", "recallHeatmaps", f"{method}.recallHeatmap.pdf") for method in config["methods"]],
+        recallHeatmaps = [os.path.join(config["outDir"], "plots", "recallHeatmaps", f"{method}.recallHeatmap.pdf") for method in THRESHOLDED_METHODS],
         benchmarkingReport = os.path.join(config["outDir"], "benchmarkingReport.html"),
         variantCounts = os.path.join(config["outDir"], "variants", "uniqueVariantCount.matchedTissues.txt")
 

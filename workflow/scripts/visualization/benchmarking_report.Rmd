@@ -37,8 +37,6 @@ library(data.table)
 
 ```{r setup1, include=TRUE, echo=FALSE}
 # input files
-enr.all = fread(snakemake@input$enrAllTable, sep="\t")
-pred.all = fread(snakemake@input$predictionMetrics, sep="\t")
 ER.files = snakemake@input$er_combined %>% strsplit(" ") %>% unlist() # once per matched GTEx tissue
 enrMatrices.CRISPR.files = snakemake@input$enrMatrices_CRISPRthresh  %>% strsplit(" ") %>% unlist() # one per method
 recallTables.CRISPR.files = snakemake@input$recallTables_CRISPRthresh  %>% strsplit(" ") %>% unlist() # one per method, includes all distances
@@ -50,7 +48,13 @@ cp = fread(snakemake@input$colorPalette, sep="\t") # method, pred_name_long, hex
 thresholdPIP = snakemake@params$thresholdPIP %>% as.numeric()
 distances_min = snakemake@params$distances_min %>% as.character %>% strsplit(" ") %>% unlist() %>% as.numeric()
 distances_max = snakemake@params$distances_max %>% as.character %>% strsplit(" ") %>% unlist() %>% as.numeric()
-methods = (snakemake@params$methods) %>% strsplit(" ") %>% unlist
+# only methods with a threshold; the others appear only in the enrichment-recall curves
+methods = as.character(unlist(snakemake@params$methods))
+has_thresholded = length(methods) > 0
+if (has_thresholded) {
+	enr.all = fread(snakemake@input$enrAllTable, sep="\t")
+	pred.all = fread(snakemake@input$predictionMetrics, sep="\t")
+}
 distances = snakemake@params$distances %>% as.character %>% strsplit(" ") %>% unlist() %>% as.numeric()
 GTExTissues_matched = snakemake@params$GTExTissues_matched %>% strsplit(" ") %>% unlist()
 ```
@@ -76,7 +80,8 @@ varPerGTExTissue=ggplot(data=nVariants, aes(x=tissue, y=var_count, fill=distance
 	coord_flip() 
 
 
-# TRIPLE BOX PLOTS
+# TRIPLE BOX PLOTS (methods with a threshold only)
+if (has_thresholded) {
 # add distance label to pred.all and enr.all
 pred.all$distance.label = paste0(pred.all$cat, "\n", pred.all$count)
 enr.all$distance.label = paste0(enr.all$cat, "\n", enr.all$count)
@@ -122,15 +127,21 @@ scatter = ggplot(df.dist, aes(x=recall.linking, y=log10(enrichment), color=pred_
 	xlab(scatter_x) + ylab("log10 enrichment (eQTLs vs. common variants)") +
 	scale_color_manual(values=cp_triple, name="Predictor") +
 	theme_classic() + theme(axis.text = element_text(size = 7), axis.title = element_text(size = 8), legend.position='right')
+}
 
 # VARIABLES FOR TEXT
 pred_name_longs = cp$pred_name_long
+no_threshold_names = cp$pred_name_long[!(cp$method %in% methods)]
+no_threshold_note = if (length(no_threshold_names) == 0) "" else paste0(
+	"- No threshold was given for: ", paste(no_threshold_names, collapse = ", "),
+	". These methods appear only in the enrichment-recall curves and enrichment-at-recall plots, not in the thresholded boxplots, heatmaps, tables or scatter plot.")
 ```
 
 - This report presents benchmarking results for the following E-G linking methods: `r pred_name_longs`
 - For distance stratified plots, eVariant-eGene distances were stratified at the following kb values: `r distances`
+`r no_threshold_note`
 
-```{r summary, echo=FALSE, fig.width=14, fig.cap=cap}
+```{r summary, eval=has_thresholded, echo=FALSE, fig.width=14, fig.cap=cap}
 
 ggarrange(enr.by.distance, recall.by.distance, linking.by.distance, nrow=1, ncol=3)
 
@@ -170,7 +181,7 @@ E(Q,B) = [(# variants in Q overlapping enhancers in B)/(# variants in Q)]/[(# 10
 
 ## Enrichment heatmaps {.tabset}
 Heatmaps displaying enrichment values at each biosample intersection. As the order on each axis was determined by clustering, we expect similar biosamples and tissues to be located near each other. Areas of the heat map with darker blue indicate stronger enrichment. Enhancer predicitons were binarized based on the provided value for each predictor, often the threshold yielding 70% recall for benchmarking K562 predictions for the predictor on CRISPR data.
-```{r enrHM, echo=FALSE, results='asis', fig.height=12, fig.cap=cap}
+```{r enrHM, eval=has_thresholded, echo=FALSE, results='asis', fig.height=12, fig.cap=cap}
 colors = c("#f6eff7","#bdc9e1", "#67a9cf","#1c9099", "#016c59")
 
 for (i in 1:length(methods)) {
@@ -200,7 +211,7 @@ Table (searchable and sortable) with values used to derive enrichment values for
 htmltools::tagList(reactable(matrix()))
 ```
 
-```{r enrTables, echo=FALSE, results='asis'}
+```{r enrTables, eval=has_thresholded, echo=FALSE, results='asis'}
 
 for (i in 1:length(methods)) {
    cat("  \n###",  methods[i], "  \n")
@@ -228,7 +239,7 @@ We compute recall R of variants from eQTL biosample Q in enhancers for biosample
 
 ## Recall heatmaps {.tabset}
 Heatmaps displaying recall values at each biosample intersection. As above, we expect similar biosamples and tissues to cluster, and enhancer predictions were binarized based on the provided threshold.
-```{r recallHM, echo=FALSE, results='asis', fig.height=12, fig.cap=cap}
+```{r recallHM, eval=has_thresholded, echo=FALSE, results='asis', fig.height=12, fig.cap=cap}
 colors = c("#edf8fb","#b3cde3", "#8c96c6", "#8856a7", "#810f7c")
 lims = c(0, 0.25)
 
@@ -264,7 +275,7 @@ Table (searchable and sortable) with values used to derive recall values for the
 htmltools::tagList(reactable(matrix()))
 ```
 
-```{r recallTables, echo=FALSE, results='asis'}
+```{r recallTables, eval=has_thresholded, echo=FALSE, results='asis'}
 
 for (i in 1:length(methods)) {
    cat("  \n###",  methods[i], "  \n")
@@ -291,7 +302,7 @@ for (i in 1:length(methods)) {
 
 ## Enrichment and recall for matching biosamples 
 Each datapoint represents one eQTL biosample, prediction biosample pair. Enrichment and recall were computed as above using enhancers defined by the provided threshold.
-```{r scatter, echo=FALSE, fig.width=10, fig.cap=cap}
+```{r scatter, eval=has_thresholded, echo=FALSE, fig.width=10, fig.cap=cap}
 
 ggplotly(scatter)
 

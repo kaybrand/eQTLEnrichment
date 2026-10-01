@@ -80,14 +80,15 @@ def _check_methods_table(methods_config, config, errors):
             continue
         row = methods_config.loc[m]
 
+        # A blank threshold is allowed: the method is then left out of every
+        # thresholded output and appears only in the threshold-free ones.
         threshold = None
-        if _is_blank(row["threshold"]):
-            errors.append(f"{m}: threshold is blank in {mt}. Every benchmarked method needs a numeric threshold.")
-        else:
+        if not _is_blank(row["threshold"]):
             try:
                 threshold = float(row["threshold"])
             except (TypeError, ValueError):
-                errors.append(f"{m}: threshold '{row['threshold']}' in {mt} is not a number.")
+                errors.append(f"{m}: threshold '{row['threshold']}' in {mt} is not a number. "
+                              f"Leave it blank if this method has no threshold.")
 
         flags = {}
         for col in BOOLEAN_METHOD_COLUMNS:

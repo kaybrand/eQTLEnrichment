@@ -56,7 +56,7 @@ if (binary %in% c("TRUE", "True", TRUE)){
   # quantile spaced scores (n_steps_target)
   prob_vector = seq(0, 1, length.out=n_steps_target)
   quantile_scores = unname(quantile(scores, na.rm=T, probs=prob_vector)) 
-  quantile_scores = c(quantile_scores, provided_threshold)
+  quantile_scores = c(quantile_scores, provided_threshold[!is.na(provided_threshold)])
   
   thresholds = data.frame(threshold=quantile_scores) %>% distinct()
   
@@ -65,7 +65,7 @@ if (binary %in% c("TRUE", "True", TRUE)){
     n_steps = n_steps + 1
     prob_vector = seq(0, 1, length.out = n_steps)
     quantile_scores = unname(quantile(scores, na.rm=T, probs=prob_vector))
-    quantile_scores = c(quantile_scores, provided_threshold)
+    quantile_scores = c(quantile_scores, provided_threshold[!is.na(provided_threshold)])
     
     thresholds = data.frame(threshold=quantile_scores) %>% distinct()
   }

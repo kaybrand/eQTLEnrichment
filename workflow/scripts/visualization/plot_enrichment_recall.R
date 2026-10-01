@@ -90,7 +90,10 @@ df$key = factor(df$key)
 df_plot = dplyr::filter(df, recall.linking>0) # remove (0,0) points
 
 df_binary = dplyr::filter(df_plot, nPoints==2) %>% dplyr::filter(threshold==1)
-df_thresh = dplyr::filter(df, threshold==score_threshold) # suggested thresholds
+# df[is.na(df)] = 0 above turned a missing threshold into 0, so pick marker rows
+# only for methods that have a threshold.
+thresholded_methods = scores$method[!is.na(scores$score_threshold)]
+df_thresh = dplyr::filter(df, method %in% thresholded_methods, threshold==score_threshold) # suggested thresholds
 df_plot = dplyr::filter(df_plot, nPoints>2)
 
 # plotting params
@@ -203,6 +206,7 @@ if (this_tissue == "AllMatches") {
     agg_m = dplyr::filter(agg_lines, method == m)
     if (nrow(agg_m) == 0) next
     signed_threshold = scores$score_threshold[scores$method == m]
+    if (is.na(signed_threshold)) next  # no threshold configured: no marker
     marker_list[[m]] = agg_m[which.min(abs(agg_m$threshold - signed_threshold)), ]
   }
   markers = dplyr::bind_rows(marker_list)

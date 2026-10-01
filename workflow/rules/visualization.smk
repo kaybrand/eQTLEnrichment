@@ -100,9 +100,10 @@ rule plot_enrichment_with_ci:
 		os.path.join(config["codeDir"], "visualization", "plot_enrichment_with_ci_at_recall.R")
 
 # generate final comparison plot (triple boxplot)
-enrichmentTables_distance=  [os.path.join(config["outDir"], method, "enrichmentTables", f"enrichmentTable.{distance_min}to{distance_max}Kb.tsv") for distance_min, distance_max in zip(config["distances_min"], config["distances_max"]) for method in config['methods']]
-predTables_distance = [os.path.join(config["outDir"], method, "recallTables", "recallTable.byDistance.tsv") for method in config['methods']]
-maps = [os.path.join(config["outDir"], method, "intermediate", "GTExTissueBiosampleMap.tsv") for method in config["methods"]]
+# thresholded comparisons: only methods with a threshold (see Snakefile)
+enrichmentTables_distance=  [os.path.join(config["outDir"], method, "enrichmentTables", f"enrichmentTable.{distance_min}to{distance_max}Kb.tsv") for distance_min, distance_max in zip(config["distances_min"], config["distances_max"]) for method in THRESHOLDED_METHODS]
+predTables_distance = [os.path.join(config["outDir"], method, "recallTables", "recallTable.byDistance.tsv") for method in THRESHOLDED_METHODS]
+maps = [os.path.join(config["outDir"], method, "intermediate", "GTExTissueBiosampleMap.tsv") for method in THRESHOLDED_METHODS]
 
 rule plot_thresholded_matched_performance_comparison:
 	input:
@@ -234,14 +235,15 @@ rule plot_recall_heatmaps:
 rule generate_html_report:
 	input:
 		colorPalette = os.path.join(config["outDir"], "plots", "colorPalette.tsv"),
-		enrAllTable = os.path.join(config["outDir"], "plots", "allMatchedEnrichments.tsv"),
-		predictionMetrics = os.path.join(config["outDir"], "plots", "allMatchedPredictionMetrics.tsv"),
+		# thresholded inputs are empty when no method has a threshold
+		enrAllTable = [os.path.join(config["outDir"], "plots", "allMatchedEnrichments.tsv")] if THRESHOLDED_METHODS else [],
+		predictionMetrics = [os.path.join(config["outDir"], "plots", "allMatchedPredictionMetrics.tsv")] if THRESHOLDED_METHODS else [],
 		er_combined = expand(os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.tsv"), GTExTissue=GTExTissues_plus_all),
-		enrMatrices_CRISPRthresh = expand(os.path.join(config["outDir"], "{method}", "enrichmentTables", "enrichmentTable.0to30000Kb.tsv"), method=config["methods"]),
-		recallTables_CRISPRthresh = expand(os.path.join(config["outDir"], "{method}", "recallTables", "recallTable.byDistance.tsv"), method=config["methods"]),
+		enrMatrices_CRISPRthresh = expand(os.path.join(config["outDir"], "{method}", "enrichmentTables", "enrichmentTable.0to30000Kb.tsv"), method=THRESHOLDED_METHODS),
+		recallTables_CRISPRthresh = expand(os.path.join(config["outDir"], "{method}", "recallTables", "recallTable.byDistance.tsv"), method=THRESHOLDED_METHODS),
 		nVariants = os.path.join(config["outDir"], "plots", "avgVariantsPerTissue.tsv")
 	params:
-		methods = config["methods"],
+		methods = THRESHOLDED_METHODS,
 		distances_min = config["distances_min"],
 		distances_max = config["distances_max"],
 		distances = config["distances"],
