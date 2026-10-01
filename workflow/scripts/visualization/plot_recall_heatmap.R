@@ -137,13 +137,16 @@ main <- function() {
 
 	blank = ggplot() + theme_void()
 
-	assembled = egg::ggarrange(recall_grid, enh_size, var_count, blank, nrow=2, ncol=2, heights=c(2, 0.2), widths=c(2, 0.3))
+	# Same fixed inch budget as plot_enrichment_heatmap.R: a 2:0.2 height ratio
+	# leaves the bottom panel too short for its tick labels and axis title,
+	# especially when the heatmap has only a few rows.
+	bottom_panel_in = 1.3
+	total_height = ht + bottom_panel_in
+	assembled = egg::ggarrange(recall_grid, enh_size, var_count, blank, nrow=2, ncol=2, heights=c(ht, bottom_panel_in), widths=c(2, 0.3))
 
 	ggsave(outFile_solo, just_recall, width=wd, height=ht, limitsize=FALSE)
-	# The withMetrics variant adds the enhancer-size panel on the right (widths 2:0.3)
-	# and the eGene/eVariant-pair panel below (heights 2:0.2); grow the canvas by the
-	# same ratios so the heatmap body keeps the cell size computed above.
-	ggsave(outFile_combined, assembled, width=wd*1.15, height=ht*1.10, limitsize=FALSE)
+	# widths 2:0.3 adds the enhancer-size panel on the right; grow the canvas to match.
+	ggsave(outFile_combined, assembled, width=wd*1.15, height=total_height*1.05, limitsize=FALSE)
 
 }
 
