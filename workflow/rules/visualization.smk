@@ -1,4 +1,9 @@
-# color palette 	
+def display_name(method):
+	# blank methods-table cells arrive as the string "None" (see Snakefile)
+	name = methods_config.loc[method, "pred_name_long"]
+	return method if name == "None" else name
+
+# color palette
 rule generate_color_palette:
 	params:
 		user_inputs = [methods_config.loc[method, "color"] for method in config["methods"]],
@@ -54,9 +59,18 @@ rule plot_enrichment_recall_curve:
 	input:
 		colorPalette = os.path.join(config["outDir"], "plots", "colorPalette.tsv"),
 		enrichmentRecall_files = lambda wildcards: get_table_files(wildcards.GTExTissue),
+		# Per-tissue view only: raw per-threshold counts for pooling biosamples,
+		# unique eVariants per tissue, the pipeline's biosample-tissue pairings,
+		# and one candidate-universe enrichment table per distinct universe.
+		enrichmentTable_acrossThresholds = expand(os.path.join(config["outDir"], "{method}", "enrichmentTables", "enrichmentTable.acrossThresholds.tsv.gz"), method=config["methods"]),
+		variantsFile = os.path.join(config["outDir"], "variants", "GTExVariants.filteredForUniverse.tsv.gz"),
+		biosampleTissueMaps = expand(os.path.join(config["outDir"], "{method}", "intermediate", "GTExTissueBiosampleMap.tsv"), method=config["methods"]),
+		candidateEnrichmentTables = [os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[label], "enrichmentTables", "enrichmentTable.0to30000Kb.candidateUniverse.tsv") for label in sorted(UNIVERSE_GROUP_MEMBERS)],
 	params:
 		score_thresholds = [methods_config.loc[method_name, "threshold"] for method_name in config["methods"]],
-		methods = config["methods"]
+		methods = config["methods"],
+		predictionsTable = config["predictionsTable"],
+		candidateUniverseNames = [" / ".join(display_name(m) for m in sorted(UNIVERSE_GROUP_MEMBERS[label])) for label in sorted(UNIVERSE_GROUP_MEMBERS)]
 	output:
 		er_combined = os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.pdf"),
 		er_combined_table = os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.tsv")
