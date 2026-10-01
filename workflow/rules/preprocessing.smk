@@ -84,6 +84,7 @@ rule process_predictions:
             echo "  threshold rule: $rule (from {params.methodsTable})" >&2
             echo "  {params.scoreCol} in this file (after nonneg_only and gene-universe filters) ranges $range" >&2
             echo "  Check the threshold's scale and sign, inverse_predictor, and score_col for this method." >&2
+            if [[ {params.inverted} -eq 1 ]]; then echo "  inverse_predictor is TRUE: enter the threshold in the score's own units; the pipeline negates it." >&2; fi
             exit 1
         fi
         """

@@ -106,10 +106,6 @@ def _check_methods_table(methods_config, config, errors):
                 continue
             flags[col] = _as_bool(value)
 
-        if threshold is not None and flags.get("inverse_predictor") and threshold < 0:
-            errors.append(f"{m}: threshold is {threshold:g} and inverse_predictor is TRUE. Enter the threshold "
-                          f"in the score's own units (e.g. 54190 for a distance, 0.05 for a p-value); the "
-                          f"pipeline negates it for you. A negative value here selects almost nothing.")
         if threshold is not None and flags.get("boolean") and threshold != 1:
             errors.append(f"{m}: boolean is TRUE, so scores are 0/1 and the threshold should be 1, not {threshold:g}.")
 
