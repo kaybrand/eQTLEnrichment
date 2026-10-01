@@ -81,7 +81,7 @@ calcs$x1 = calcs$nVariantsOverlappingEnhancers
 calcs$n2 = calcs$nCommonVariants
 calcs$x2 = calcs$nCommonVariantsOverlappingEnhancers
 
-calcs$SE_log_enr = with(calcs, sqrt(((n1-x1)/x1)/n1) + ((n2-x2)/x2)/n2)
+calcs$SE_log_enr = with(calcs, sqrt(((n1-x1)/x1)/n1 + ((n2-x2)/x2)/n2))
 calcs$log_enr = log(calcs$enrichment)
 calcs$log_CI_enr_low = with(calcs, log_enr - z*SE_log_enr)
 calcs$log_CI_enr_high = with(calcs, log_enr + z*SE_log_enr)
