@@ -205,7 +205,7 @@ if (this_tissue == "AllMatches") {
   }
   markers = dplyr::bind_rows(marker_list)
 
-  build_plot = function(methods_to_draw, title, subtitle) {
+  build_plot = function(methods_to_draw, title, subtitle, show_legend = TRUE) {
     df_plot_sub = dplyr::filter(df_plot, method %in% methods_to_draw)
     lines_sub   = dplyr::filter(agg_lines, method %in% methods_to_draw)
     points_sub  = dplyr::filter(agg_points, method %in% methods_to_draw)
@@ -244,7 +244,7 @@ if (this_tissue == "AllMatches") {
         panel.grid.minor = element_blank(),
         legend.text = element_text(size = 10),
         legend.title = element_text(size = 11),
-        legend.position = "right",
+        legend.position = if (show_legend) "right" else "none",
         legend.direction = "vertical",
         plot.margin = margin(t = 12, r = 12, b = 12, l = 12),
         aspect.ratio = 1
@@ -267,13 +267,15 @@ if (this_tissue == "AllMatches") {
   g = build_plot(models_here, this_tissue,
                  paste0("All models -- ", n_bio, " biosample pairing", ifelse(n_bio == 1, "", "s")))
 
-  # Per-model panels add nothing when there is only one model.
+  # Per-model panels add nothing when there is only one model. They carry no
+  # legend: the one model they show is named in the title.
   sub_plots = list()
   if (length(models_here) > 1) {
     sub_plots = lapply(models_here, function(m) {
       n_bio_m = length(unique(dplyr::filter(df, method == m)$Biosample))
       build_plot(m, paste0(this_tissue, " -- ", method_labels[[m]]),
-                 paste0(n_bio_m, " biosample", ifelse(n_bio_m == 1, "", "s")))
+                 paste0(n_bio_m, " biosample", ifelse(n_bio_m == 1, "", "s")),
+                 show_legend = FALSE)
     })
   }
 
