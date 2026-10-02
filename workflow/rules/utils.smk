@@ -145,9 +145,10 @@ def process_biosample_tissue_maps(methods_config, config):
 def flatten(list_of_lists):
     return [x for xs in list_of_lists for x in xs]
 
-# These two always share a candidate element-gene universe even though they
-# read different prediction files.
-ALWAYS_SHARED_UNIVERSE = [("scE2G_multiome", "scE2G_ATAC")]
+# Each tuple always shares one candidate element-gene universe, even when the
+# members read different prediction files. ABC_distanceToTSS is the old name of
+# distanceToTSS (distance to TSS among ABC elements).
+ALWAYS_SHARED_UNIVERSE = [("scE2G_multiome", "scE2G_ATAC", "scABC", "distanceToTSS", "ABC_distanceToTSS")]
 
 def determine_candidate_universe_groups(methods_config, config):
     """Group config["methods"] by candidate element-gene universe.
@@ -179,9 +180,10 @@ def determine_candidate_universe_groups(methods_config, config):
             shared = set(pred_files[a]) & set(pred_files[b])
             if shared and all(pred_files[a][bio] == pred_files[b][bio] for bio in shared):
                 join(a, b)
-    for a, b in ALWAYS_SHARED_UNIVERSE:
-        if a in parent and b in parent:
-            join(a, b)
+    for shared_group in ALWAYS_SHARED_UNIVERSE:
+        present = [m for m in shared_group if m in parent]
+        for m in present[1:]:
+            join(present[0], m)
 
     groups = {}
     for m in methods:
