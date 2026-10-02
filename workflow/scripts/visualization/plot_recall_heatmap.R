@@ -60,6 +60,12 @@ cluster_tissues_biosamples <- function(res){
 }
 
 main <- function() {
+	# "thresholded": the method's own thresholded predictions.
+	# "candidateUniverse": no score cutoff, i.e. the most recall the candidate
+	# element-gene universe can reach.
+	mode = snakemake@params$mode
+	stopifnot(mode %in% c("thresholded", "candidateUniverse"))
+
 	# input data
 	recallTableFile = snakemake@input$recallTable # by distance
 	enhSizeFile = snakemake@input$enhancerSizes # per method; biosample / base pairs
@@ -74,8 +80,27 @@ main <- function() {
 #     quit(save = 'yes')
 # 	}
 
-	recall = data.table::fread(recallTableFile, sep="\t", header=TRUE)
-	recall = dplyr::filter(recall, distance_min == 0, distance_max==30000,
+	recall_all = data.table::fread(recallTableFile, sep="\t", header=TRUE)
+	biosample_tissue_map = fread(biosample_tissue_file, sep="\t", header=TRUE)
+	colnames(biosample_tissue_map) = c("Biosample", "GTExTissue")
+
+	# Table of every biosample x tissue (all distances), written before the
+	# plotting filters below so nothing is dropped from it.
+	if (!is.null(snakemake@output$table)) {
+		pair_keys = paste(biosample_tissue_map$Biosample, biosample_tissue_map$GTExTissue)
+		out_table = dplyr::filter(recall_all, distance_min == 0, distance_max == 30000) %>%
+			dplyr::transmute(Biosample, GTExTissue,
+				paired = paste(Biosample, GTExTissue) %in% pair_keys,
+				eVariant_eGene_pairs = total.variants,
+				pairs_eVariant_in_element = nVariantGenePairsOverlappingEnhancers,
+				pairs_eVariant_in_element_linked_to_eGene = nVariantsOverlappingEnhancersCorrectGene,
+				recall_total = recall.total,
+				recall_linking = recall.linking) %>%
+			dplyr::arrange(dplyr::desc(paired), Biosample, GTExTissue)
+		fwrite(out_table, snakemake@output$table, sep = "\t", quote = FALSE)
+	}
+
+	recall = dplyr::filter(recall_all, distance_min == 0, distance_max==30000,
 		is.finite(recall.linking), !is.na(recall.linking), total.variants>20)
 	# Remove tissues where recall is constant across biosamples -- uninformative for
 	# clustering. Only meaningful with at least two biosamples to vary across: with a
@@ -102,7 +127,19 @@ main <- function() {
 	# set plotting params
 	colors = c("#edf8fb","#b3cde3", "#8c96c6", "#8856a7", "#810f7c")
 	na_color = "#ffffff"
-	lims = c(0, 0.25) 
+	lims = c(0, 0.25)
+	legend_title = "Recall (linked to correct eGene)"
+	if (mode == "candidateUniverse") {
+		# The unthresholded recall can exceed 0.25; widen the scale instead of
+		# squishing it, in steps of 0.05.
+		lims = c(0, max(0.25, ceiling(max(recall$recall.linking, na.rm = TRUE) * 20) / 20))
+		legend_title = "Max. recall (linked to correct eGene)"
+	}
+	title_main = snakemake@params$title
+	title_sub = snakemake@params$subtitle
+	banner_color = if (mode == "thresholded") "#1a7a1a" else "#B2182B"
+	title_theme = theme(plot.title = element_text(size = 10, face = "bold", color = banner_color),
+		plot.subtitle = element_text(size = 7.5, color = banner_color))
 	n_biosamples = recall$Biosample %>% unique() %>% length()
 	n_tissues_plotted = recall$GTExTissue %>% unique() %>% length()
 	canvas = heatmap_canvas(n_biosamples, n_tissues_plotted)
@@ -111,8 +148,6 @@ main <- function() {
 
 	# Black boxes around the paired biosample-tissue cells, as in the enrichment
 	# heatmap. Pairs whose tissue was filtered out above are not on the grid.
-	biosample_tissue_map = fread(biosample_tissue_file, sep="\t", header=TRUE)
-	colnames(biosample_tissue_map) = c("Biosample", "GTExTissue")
 	rect_data = biosample_tissue_map %>%
 		dplyr::inner_join(data.frame(GTExTissue = levels(recall$GTExTissue), x = seq_along(levels(recall$GTExTissue))), by = "GTExTissue") %>%
 		dplyr::inner_join(data.frame(Biosample = levels(recall$Biosample), y = seq_along(levels(recall$Biosample))), by = "Biosample") %>%
@@ -123,16 +158,22 @@ main <- function() {
     # heat map alone
 	just_recall = ggplot(recall, aes(x=GTExTissue, y=Biosample, fill=recall.linking)) + 
 		geom_tile() + pair_boxes +
-		scale_fill_gradientn(colors=colors, oob=scales::squish, na.value="#FFFFFF", limits=lims, name="Recall (linked to correct eGene)") +
+		scale_fill_gradientn(colors=colors, oob=scales::squish, na.value="#FFFFFF", limits=lims, name=legend_title) +
+		labs(title = title_main, subtitle = title_sub) +
 		theme_minimal() + theme(axis.text = element_text(size = 7), axis.title = element_blank(), axis.text.x = element_text(angle=60, hjust=1),
-			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7))
+			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7)) +
+		title_theme +
+		guides(fill = guide_colourbar(title.position = "top", title.hjust = 0.5))
 		
 	# plots for grid
 	recall_grid  = ggplot(recall, aes(x=GTExTissue, y=Biosample, fill=recall.linking)) + 
 		geom_tile() + pair_boxes +
-		scale_fill_gradientn(colors=colors, oob=scales::squish, na.value="#FFFFFF", limits=lims, name="Recall (linked to correct eGene)") +
+		scale_fill_gradientn(colors=colors, oob=scales::squish, na.value="#FFFFFF", limits=lims, name=legend_title) +
+		labs(title = title_main, subtitle = title_sub) +
 		theme_minimal() + theme(axis.text = element_text(size = 7), axis.title = element_blank(), axis.text.x = element_blank(),
-			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7))
+			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7)) +
+		title_theme +
+		guides(fill = guide_colourbar(title.position = "top", title.hjust = 0.5))
 
 	nVar = dplyr::select(recall, GTExTissue, total.variants) %>% distinct()
 	var_count = ggplot(nVar, aes(x=GTExTissue, y=total.variants)) +

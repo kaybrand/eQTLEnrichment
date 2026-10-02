@@ -18,6 +18,27 @@ rule compute_prediction_table_by_distance:
 		os.path.join(config["codeDir"], "enrichment_recall", "compute_prediction_table_distance.R")
 
 
+# Same script with no score cutoff: the most recall the candidate element-gene
+# universe can reach.
+rule compute_prediction_table_candidate_universe:
+	input:
+		varPredInt = lambda wildcards: [os.path.join(config["outDir"], wildcards.method, "biosamples", biosample, "GTExVariants-enhancerPredictionsInt.tsv.gz") for biosample in methods_config.loc[wildcards.method, "biosamples"]],
+		filteredGTExVariantsFinal = os.path.join(config["outDir"], "variants", "GTExVariants.filteredForUniverse.tsv.gz")
+	params:
+		distances_max = config["distances_max"],
+		distances_min = config["distances_min"],
+		threshold = "-Inf",
+		biosamples = lambda wildcards: methods_config.loc[wildcards.method, "biosamples"]
+	output:
+		predTable = os.path.join(config["outDir"], "{method}", "recallTables", "recallTable.byDistance.candidateUniverse.tsv")
+	resources:
+		mem_mb = determine_mem_mb
+	conda:
+		os.path.join(config["envDir"], "eQTLEnv.yml")
+	script:
+		os.path.join(config["codeDir"], "enrichment_recall", "compute_prediction_table_distance.R")
+
+
 rule compute_prediction_table_by_threshold:
 	input:
 		varPredInt = lambda wildcards: [os.path.join(config["outDir"], wildcards.method, "biosamples", biosample, "GTExVariants-enhancerPredictionsInt.tsv.gz") for biosample in methods_config.loc[wildcards.method, "biosamples"]],

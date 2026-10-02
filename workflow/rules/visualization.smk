@@ -3,6 +3,14 @@ def display_name(method):
 	name = methods_config.loc[method, "pred_name_long"]
 	return method if name == "None" else name
 
+def threshold_rule_text(method):
+	# methods_config thresholds are negated for inverse predictors (see Snakefile)
+	col = methods_config.loc[method, "score_col"]
+	t = methods_config.loc[method, "threshold"]
+	if is_config_true(methods_config.loc[method, "inverse_predictor"]):
+		return f"{col} <= {-t:g}"
+	return f"{col} >= {t:g}"
+
 # color palette
 rule generate_color_palette:
 	params:
@@ -222,9 +230,37 @@ rule plot_recall_heatmaps:
 		recallTable = os.path.join(config["outDir"], "{method}", "recallTables", "recallTable.byDistance.tsv"),
 		enhancerSizes =  os.path.join(config["outDir"], "{method}", "intermediate", "basesPerEnhancerSet.tsv"),
 		biosample_tissue_map = os.path.join(config["outDir"], "{method}", "intermediate", "GTExTissueBiosampleMap.tsv")
+	params:
+		mode = "thresholded",
+		title = lambda wildcards: f"Model: {display_name(wildcards.method)}  |  THRESHOLDED predictions",
+		subtitle = lambda wildcards: ("recall = fraction of eVariant-eGene pairs whose eVariant is in a predicted enhancer linked to its eGene\n"
+		                              f"predicted enhancer: {threshold_rule_text(wildcards.method)}")
 	output:
 		outFile_combined =  os.path.join(config["outDir"], "plots", "recallHeatmaps", "{method}.recallHeatmap.withMetrics.pdf"),
 		outFile_alone = os.path.join(config["outDir"], "plots", "recallHeatmaps", "{method}.recallHeatmap.pdf")
+	resources:
+		mem_mb = determine_mem_mb
+	conda:
+		os.path.join(config["envDir"], "eQTLEnv.yml")
+	script:
+		os.path.join(config["codeDir"], "visualization", "plot_recall_heatmap.R")
+
+# Recall with no score cutoff: the most recall each distinct candidate
+# element-gene universe can reach. One plot and table per universe group.
+rule plot_recall_heatmaps_candidateUniverse:
+	input:
+		recallTable = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "recallTables", "recallTable.byDistance.candidateUniverse.tsv"),
+		enhancerSizes = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "intermediate", "basesPerEnhancerSet.candidateUniverse.tsv"),
+		biosample_tissue_map = lambda wildcards: os.path.join(config["outDir"], UNIVERSE_GROUP_REPRESENTATIVE[wildcards.universeGroup], "intermediate", "GTExTissueBiosampleMap.tsv")
+	params:
+		mode = "candidateUniverse",
+		title = "CANDIDATE E2G UNIVERSE (no score threshold applied)",
+		subtitle = lambda wildcards: ("max. recall = fraction of eVariant-eGene pairs whose eVariant is in any candidate element linked to its eGene\n"
+		                              "shared by: " + ", ".join(display_name(m) for m in sorted(UNIVERSE_GROUP_MEMBERS[wildcards.universeGroup])))
+	output:
+		outFile_combined = os.path.join(config["outDir"], "plots", "recallHeatmaps_candidateUniverse", "{universeGroup}.candidateUniverse.recallHeatmap.withMetrics.pdf"),
+		outFile_alone = os.path.join(config["outDir"], "plots", "recallHeatmaps_candidateUniverse", "{universeGroup}.candidateUniverse.recallHeatmap.pdf"),
+		table = os.path.join(config["outDir"], "plots", "recallHeatmaps_candidateUniverse", "{universeGroup}.candidateUniverse.recallTable.tsv")
 	resources:
 		mem_mb = determine_mem_mb
 	conda:
