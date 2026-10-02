@@ -63,6 +63,7 @@ main <- function() {
 	# input data
 	recallTableFile = snakemake@input$recallTable # by distance
 	enhSizeFile = snakemake@input$enhancerSizes # per method; biosample / base pairs
+	biosample_tissue_file = snakemake@input$biosample_tissue_map
 	#p_threshold = snakemake@params$p_threshold %>% as.numeric()
 	outFile_combined = snakemake@output$outFile_combined
 	outFile_solo = snakemake@output$outFile_alone
@@ -108,16 +109,27 @@ main <- function() {
 	wd = canvas[["width"]]
 	ht = canvas[["height"]]
 
+	# Black boxes around the paired biosample-tissue cells, as in the enrichment
+	# heatmap. Pairs whose tissue was filtered out above are not on the grid.
+	biosample_tissue_map = fread(biosample_tissue_file, sep="\t", header=TRUE)
+	colnames(biosample_tissue_map) = c("Biosample", "GTExTissue")
+	rect_data = biosample_tissue_map %>%
+		dplyr::inner_join(data.frame(GTExTissue = levels(recall$GTExTissue), x = seq_along(levels(recall$GTExTissue))), by = "GTExTissue") %>%
+		dplyr::inner_join(data.frame(Biosample = levels(recall$Biosample), y = seq_along(levels(recall$Biosample))), by = "Biosample") %>%
+		dplyr::mutate(xmin = x - 0.5, xmax = x + 0.5, ymin = y - 0.5, ymax = y + 0.5)
+	pair_boxes = geom_rect(data = rect_data, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+		inherit.aes = FALSE, color = "black", fill = NA, linewidth = 1)
+
     # heat map alone
 	just_recall = ggplot(recall, aes(x=GTExTissue, y=Biosample, fill=recall.linking)) + 
-		geom_tile() +
+		geom_tile() + pair_boxes +
 		scale_fill_gradientn(colors=colors, oob=scales::squish, na.value="#FFFFFF", limits=lims, name="Recall (linked to correct eGene)") +
 		theme_minimal() + theme(axis.text = element_text(size = 7), axis.title = element_blank(), axis.text.x = element_text(angle=60, hjust=1),
 			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7))
 		
 	# plots for grid
 	recall_grid  = ggplot(recall, aes(x=GTExTissue, y=Biosample, fill=recall.linking)) + 
-		geom_tile() +
+		geom_tile() + pair_boxes +
 		scale_fill_gradientn(colors=colors, oob=scales::squish, na.value="#FFFFFF", limits=lims, name="Recall (linked to correct eGene)") +
 		theme_minimal() + theme(axis.text = element_text(size = 7), axis.title = element_blank(), axis.text.x = element_blank(),
 			legend.position='top',  legend.direction='horizontal', legend.text=element_text(size=7), legend.title=element_text(size=7))

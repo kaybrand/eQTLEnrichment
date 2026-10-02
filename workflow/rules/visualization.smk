@@ -220,7 +220,8 @@ rule plot_enrichment_heatmaps_candidateUniverse:
 rule plot_recall_heatmaps:
 	input:
 		recallTable = os.path.join(config["outDir"], "{method}", "recallTables", "recallTable.byDistance.tsv"),
-		enhancerSizes =  os.path.join(config["outDir"], "{method}", "intermediate", "basesPerEnhancerSet.tsv")
+		enhancerSizes =  os.path.join(config["outDir"], "{method}", "intermediate", "basesPerEnhancerSet.tsv"),
+		biosample_tissue_map = os.path.join(config["outDir"], "{method}", "intermediate", "GTExTissueBiosampleMap.tsv")
 	output:
 		outFile_combined =  os.path.join(config["outDir"], "plots", "recallHeatmaps", "{method}.recallHeatmap.withMetrics.pdf"),
 		outFile_alone = os.path.join(config["outDir"], "plots", "recallHeatmaps", "{method}.recallHeatmap.pdf")
