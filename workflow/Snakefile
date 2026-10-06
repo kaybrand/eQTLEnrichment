@@ -85,6 +85,12 @@ for x in config["methods"]:
     GTExTissues_all.extend(methods_config.loc[x, "GTExTissue_map"])
 GTExTissues_matched = [*set(GTExTissues_all)]
 GTExTissues_plus_all = GTExTissues_matched + ["AllMatches"]
+# tissues paired with more than one biosample (across methods) get an interactive HTML plot
+_paired_biosamples = {}
+for x in config["methods"]:
+    for tissue, biosample in zip(methods_config.loc[x, "GTExTissue_map"], methods_config.loc[x, "biosample_map"]):
+        _paired_biosamples.setdefault(tissue, set()).add(biosample)
+GTExTissues_multi_biosample = sorted(t for t, b in _paired_biosamples.items() if len(b) > 1)
 # distance bins: for example, min = 0, 10, 100, 0 and max = 10, 100, 250, 30000 kb (30 Mb)
 config["distances_min"] = [0] + config["distances"][0:-1] + [0]
 config["distances_max"] = config["distances"] + [30000]
@@ -108,6 +114,7 @@ rule all:
                                   ("thresholdedPerformanceComparison.pdf", "allMatchedThresholdedPerformance.scatter.pdf",
                                    "allThresholdedEnrichmentRecall.byDistance.pdf")] if THRESHOLDED_METHODS else [],
         enrichmentRecallCurves = [os.path.join(config["outDir"],  "plots", "enrichmentRecall",  f"enrichmentRecall.GTExTissue{tissue}.pdf") for tissue in GTExTissues_plus_all],
+        enrichmentRecallInteractive = [os.path.join(config["outDir"],  "plots", "enrichmentRecall",  f"enrichmentRecall.GTExTissue{tissue}.html") for tissue in GTExTissues_multi_biosample],
         enrichmentAtRecall = [os.path.join(config["outDir"],  "plots", "enrichmentAtRecall",  f"enrichments.Recall{recall}.GTExTissue{tissue}.pdf") for tissue in GTExTissues_plus_all for recall in config["recalls"]],
         enrHeatmapsThresholded = [os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_thresholdedModel", f"{method}.thresholdedModel.enrichmentHeatmap.pdf") for method in THRESHOLDED_METHODS],
         enrHeatmapsCandidateUniverse = [os.path.join(config["outDir"], "plots", "enrichmentHeatmaps_candidateUniverse", f"{label}.candidateUniverse.enrichmentHeatmap.pdf") for label in UNIVERSE_GROUP_MEMBERS],

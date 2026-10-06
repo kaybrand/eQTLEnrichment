@@ -16,6 +16,9 @@ method_names = snakemake@params$methods %>% strsplit(" ") %>% unlist()
 this_tissue = snakemake@wildcards$GTExTissue
 out_plot = snakemake@output$er_combined
 out_table = snakemake@output$er_combined_table
+# Plot data for the interactive HTML (plot_enrichment_recall_interactive.R).
+# Empty for AllMatches and placeholder plots.
+out_data = snakemake@output$plot_data
 cpFilePlotting = snakemake@input$colorPalette
 cp = fread(cpFilePlotting, sep="\t") # method, pred_name_long, hex
 
@@ -60,6 +63,7 @@ if (nrow(df) == 0) {
   msg = paste0("No ", this_tissue, " pairing has more than 20 eQTL pairs; nothing to plot.")
   ggsave(out_plot, ggplot() + annotate("text", x = 0, y = 0, label = msg) + theme_void(), width = 6, height = 2)
   write.table(df, out_table, quote=FALSE, col.names=TRUE, row.names=FALSE, sep="\t")
+  saveRDS(list(), out_data)
   quit(save = "no", status = 0)
 }
 
@@ -102,6 +106,7 @@ ylim = min(50, max(df_plot$enrichment))
 write.table(df, out_table, quote=FALSE, col.names=TRUE, row.names=FALSE, sep="\t")
 
 if (this_tissue == "AllMatches") {
+  saveRDS(list(), out_data)
 
   ## AllMatches is already one pre-pooled row-set per method (Biosample ==
   ## "all_matches") -- there is no per-biosample clutter to fix here, so this
@@ -303,6 +308,16 @@ if (this_tissue == "AllMatches") {
   # A tissue paired with exactly one biosample gets one panel, subtitled with that
   # biosample's name: per-model panels would only repeat the same single pairing.
   n_paired = length(paired_biosamples)
+
+  saveRDS(list(
+    tissue = this_tissue, x_label = x_label, y_label = y_label, xlim = xlim, ylim = ylim,
+    models = models_here, colors = method_colors[models_here], labels = method_labels[models_here],
+    biosample_names = setNames(vapply(paired_biosamples, sample_term_name, character(1)), paired_biosamples),
+    inverse = setNames(as.logical(unlist(snakemake@params$inverse_predictors)), method_names)[models_here],
+    curves = as.data.frame(df_plot)[, c("method", "Biosample", "threshold", "recall.linking", "enrichment")],
+    binary_points = as.data.frame(df_binary)[, c("method", "Biosample", "threshold", "recall.linking", "enrichment")],
+    pooled_lines = agg_lines, pooled_points = agg_points, markers = markers
+  ), out_data)
   subtitle = if (n_paired == 1) {
     paste0("All models -- ", sample_term_name(paired_biosamples))
   } else {

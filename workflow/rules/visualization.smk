@@ -78,10 +78,12 @@ rule plot_enrichment_recall_curve:
 		score_thresholds = [methods_config.loc[method_name, "threshold"] for method_name in config["methods"]],
 		methods = config["methods"],
 		predictionsTable = config["predictionsTable"],
-		candidateUniverseNames = [" / ".join(display_name(m) for m in sorted(UNIVERSE_GROUP_MEMBERS[label])) for label in sorted(UNIVERSE_GROUP_MEMBERS)]
+		candidateUniverseNames = [" / ".join(display_name(m) for m in sorted(UNIVERSE_GROUP_MEMBERS[label])) for label in sorted(UNIVERSE_GROUP_MEMBERS)],
+		inverse_predictors = [is_config_true(methods_config.loc[m, "inverse_predictor"]) for m in config["methods"]]
 	output:
 		er_combined = os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.pdf"),
-		er_combined_table = os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.tsv")
+		er_combined_table = os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.tsv"),
+		plot_data = os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.plotdata.rds")
 	resources:
 		mem_mb = determine_mem_mb
 	conda:
@@ -89,6 +91,20 @@ rule plot_enrichment_recall_curve:
 	script:
 		os.path.join(config["codeDir"], "visualization", "plot_enrichment_recall.R")
 		
+# Interactive HTML version: hover shows which biosample each line is. Only built
+# for tissues paired with more than one biosample (see Snakefile).
+rule plot_enrichment_recall_interactive:
+	input:
+		plot_data = os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.plotdata.rds")
+	output:
+		html = os.path.join(config["outDir"],  "plots", "enrichmentRecall", "enrichmentRecall.GTExTissue{GTExTissue}.html")
+	resources:
+		mem_mb = determine_mem_mb
+	conda:
+		os.path.join(config["envDir"], "eQTLEnv.yml")
+	script:
+		os.path.join(config["codeDir"], "visualization", "plot_enrichment_recall_interactive.R")
+
 # plot enrichment with confidence intervals across methods, once per GTEx tissue and user-defined recalls
 rule plot_enrichment_with_ci:
 	input:
