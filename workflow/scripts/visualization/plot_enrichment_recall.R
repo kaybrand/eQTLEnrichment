@@ -269,22 +269,6 @@ if (this_tissue == "AllMatches") {
     p
   }
 
-  n_bio = length(unique(df$Biosample))
-  g = build_plot(models_here, this_tissue,
-                 paste0("All models -- ", n_bio, " biosample pairing", ifelse(n_bio == 1, "", "s")))
-
-  # Per-model panels add nothing when there is only one model. They carry no
-  # legend: the one model they show is named in the title.
-  sub_plots = list()
-  if (length(models_here) > 1) {
-    sub_plots = lapply(models_here, function(m) {
-      n_bio_m = length(unique(dplyr::filter(df, method == m)$Biosample))
-      build_plot(m, paste0(this_tissue, " -- ", method_labels[[m]]),
-                 paste0(n_bio_m, " biosample", ifelse(n_bio_m == 1, "", "s")),
-                 show_legend = FALSE)
-    })
-  }
-
   # ---- pairing table: every biosample the pipeline paired with this tissue ----
   map_files = snakemake@input$biosampleTissueMaps %>% strsplit(" ") %>% unlist()
   pairs = rbindlist(lapply(seq_along(map_files), function(i) {
@@ -293,6 +277,51 @@ if (this_tissue == "AllMatches") {
     mp
   }), fill = TRUE)
   pairs = pairs[tissue == this_tissue]
+  paired_biosamples = sort(unique(pairs$biosample))
+  preds = fread(snakemake@params$predictionsTable, sep = "\t", colClasses = "character")
+  preds$biosample = trimws(preds$biosample)
+
+  # A readable name for a biosample: the predictions table's SampleTermName column if
+  # it has one, else the "# SampleTermName:" line of one of its prediction files'
+  # headers, else the biosample ID (the table and the headers are both optional).
+  sample_term_name = function(b) {
+    row = preds[biosample == b]
+    if (nrow(row) == 0) return(b)
+    if ("SampleTermName" %in% colnames(row) && nzchar(row$SampleTermName[1])) return(row$SampleTermName[1])
+    for (m in intersect(method_names, colnames(row))) {
+      f = row[[m]][1]
+      if (is.na(f) || !nzchar(f) || !file.exists(f)) next
+      con = if (grepl("\\.gz$", f)) gzfile(f) else file(f)
+      head_lines = tryCatch(readLines(con, n = 40, warn = FALSE), error = function(e) character(0))
+      close(con)
+      hit = grep("^#\\s*SampleTermName\\s*:", head_lines, value = TRUE)
+      if (length(hit) > 0) return(trimws(sub("^#\\s*SampleTermName\\s*:", "", hit[1])))
+    }
+    b
+  }
+
+  # A tissue paired with exactly one biosample gets one panel, subtitled with that
+  # biosample's name: per-model panels would only repeat the same single pairing.
+  n_paired = length(paired_biosamples)
+  subtitle = if (n_paired == 1) {
+    paste0("All models -- ", sample_term_name(paired_biosamples))
+  } else {
+    paste0("All models -- ", n_paired, " biosample pairings")
+  }
+  g = build_plot(models_here, this_tissue, subtitle)
+
+  # Per-model panels add nothing when there is only one model or only one paired
+  # biosample. They carry no legend: the one model they show is named in the title.
+  sub_plots = list()
+  if (length(models_here) > 1 && n_paired > 1) {
+    sub_plots = lapply(models_here, function(m) {
+      n_bio_m = length(unique(dplyr::filter(df, method == m)$Biosample))
+      build_plot(m, paste0(this_tissue, " -- ", method_labels[[m]]),
+                 paste0(n_bio_m, " biosample", ifelse(n_bio_m == 1, "", "s")),
+                 show_legend = FALSE)
+    })
+  }
+
   pooled_keys = unique(paste(df$method, df$Biosample))
   pairs$pooled = paste(pairs$method, pairs$biosample) %in% pooled_keys
 
@@ -303,7 +332,6 @@ if (this_tissue == "AllMatches") {
     as.data.frame()
 
   # Optional annotation columns, shown only if the predictions table has them.
-  preds = fread(snakemake@params$predictionsTable, sep = "\t", colClasses = "character")
   ann_cols = intersect(c("CellAnnotation", "SampleTermID"), colnames(preds))
   if (length(ann_cols) > 0) {
     ann = unique(preds[, c("biosample", ann_cols), with = FALSE])
