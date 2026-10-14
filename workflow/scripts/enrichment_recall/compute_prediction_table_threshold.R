@@ -38,7 +38,7 @@ for (b in 1:length(biosamples)){ # iterate through biosamples
 
 	if (size.file<size.threshold){ # file is empty (no intersection)
      		 for (t in tissues)
-			 	counts_overlap[[t]] = 0; counts_linking[[t]] = 0
+			 	{ counts_overlap[[t]] = 0; counts_linking[[t]] = 0 }
     } else { # read in file
 		variantsInt = fread(varIntFile, header=FALSE, sep="\t") %>% 
 						setNames(c("varChr", "varStart", "varEnd", "variantID", "eGene", "GTExTissue", "PIP", "distance_bin",
