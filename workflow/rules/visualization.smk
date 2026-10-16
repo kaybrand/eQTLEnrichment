@@ -105,6 +105,38 @@ rule plot_enrichment_recall_interactive:
 	script:
 		os.path.join(config["codeDir"], "visualization", "plot_enrichment_recall_interactive.R")
 
+# Enrichment-recall with enrichment divided by the enrichment of each model's own candidate
+# universe (no score cutoff), so 1 = no better than calling every candidate. One per eQTL tissue
+# plus AllMatches; pooled and per-pairing curves (see the script header).
+def universe_representative(method):
+	return UNIVERSE_GROUP_REPRESENTATIVE[UNIVERSE_GROUP_LABEL[method]]
+
+def universe_display_name(method):
+	return " / ".join(display_name(m) for m in sorted(UNIVERSE_GROUP_MEMBERS[UNIVERSE_GROUP_LABEL[method]]))
+
+rule plot_enrichment_recall_normalized:
+	input:
+		colorPalette = os.path.join(config["outDir"], "plots", "colorPalette.tsv"),
+		# all aligned with config["methods"]; the universe table may repeat across a group
+		recallTables = expand(os.path.join(config["outDir"], "{method}", "recallTables", "recallTable.acrossThresholds.tsv.gz"), method=config["methods"]),
+		enrichmentTables = expand(os.path.join(config["outDir"], "{method}", "enrichmentTables", "enrichmentTable.acrossThresholds.tsv.gz"), method=config["methods"]),
+		biosampleTissueMaps = expand(os.path.join(config["outDir"], "{method}", "intermediate", "GTExTissueBiosampleMap.tsv"), method=config["methods"]),
+		candidateEnrichmentTables = [os.path.join(config["outDir"], universe_representative(m), "enrichmentTables", "enrichmentTable.0to30000Kb.candidateUniverse.tsv") for m in config["methods"]],
+	params:
+		methods = config["methods"],
+		score_thresholds = [methods_config.loc[m, "threshold"] for m in config["methods"]],
+		universeNames = [universe_display_name(m) for m in config["methods"]],
+		thresholdPval = config["thresholdPval"]
+	output:
+		plot = os.path.join(config["outDir"], "plots", "enrichmentRecallNormalized", "enrichmentRecallNormalized.GTExTissue{GTExTissue}.pdf"),
+		table = os.path.join(config["outDir"], "plots", "enrichmentRecallNormalized", "enrichmentRecallNormalized.GTExTissue{GTExTissue}.tsv")
+	resources:
+		mem_mb = determine_mem_mb
+	conda:
+		os.path.join(config["envDir"], "eQTLEnv.yml")
+	script:
+		os.path.join(config["codeDir"], "visualization", "plot_enrichment_recall_normalized.R")
+
 # plot enrichment with confidence intervals across methods, once per GTEx tissue and user-defined recalls
 rule plot_enrichment_with_ci:
 	input:
