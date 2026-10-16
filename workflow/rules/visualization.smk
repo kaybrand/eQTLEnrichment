@@ -114,7 +114,7 @@ def universe_representative(method):
 def universe_display_name(method):
 	return " / ".join(display_name(m) for m in sorted(UNIVERSE_GROUP_MEMBERS[UNIVERSE_GROUP_LABEL[method]]))
 
-rule plot_enrichment_recall_normalized:
+rule plot_normalized_enrichment_recall:
 	input:
 		colorPalette = os.path.join(config["outDir"], "plots", "colorPalette.tsv"),
 		# all aligned with config["methods"]; the universe table may repeat across a group
@@ -128,14 +128,14 @@ rule plot_enrichment_recall_normalized:
 		universeNames = [universe_display_name(m) for m in config["methods"]],
 		thresholdPval = config["thresholdPval"]
 	output:
-		plot = os.path.join(config["outDir"], "plots", "enrichmentRecallNormalized", "enrichmentRecallNormalized.GTExTissue{GTExTissue}.pdf"),
-		table = os.path.join(config["outDir"], "plots", "enrichmentRecallNormalized", "enrichmentRecallNormalized.GTExTissue{GTExTissue}.tsv")
+		plot = os.path.join(config["outDir"], "plots", "normalizedEnrichmentRecall", "normalizedEnrichmentRecall.GTExTissue{GTExTissue}.pdf"),
+		table = os.path.join(config["outDir"], "plots", "normalizedEnrichmentRecall", "normalizedEnrichmentRecall.GTExTissue{GTExTissue}.tsv")
 	resources:
 		mem_mb = determine_mem_mb
 	conda:
 		os.path.join(config["envDir"], "eQTLEnv.yml")
 	script:
-		os.path.join(config["codeDir"], "visualization", "plot_enrichment_recall_normalized.R")
+		os.path.join(config["codeDir"], "visualization", "plot_normalized_enrichment_recall.R")
 
 # plot enrichment with confidence intervals across methods, once per GTEx tissue and user-defined recalls
 rule plot_enrichment_with_ci:
