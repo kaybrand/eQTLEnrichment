@@ -3,6 +3,8 @@ We developed this "eQTL benchmarking pipeline” to assess whether predictive mo
 
 For this analysis, we focus on distal noncoding eQTLs by by filtering out (i) coding sequences, 5′ and 3′ untranslated regions of protein-coding genes, and splice sites (within 10 bp of a intron–exon junction of a protein-coding gene) of protein-coding genes, and (ii) promoters (±250 bp from the gene TSS) of protein-coding genes. We define **enrichment** as (fraction of eQTL variants with PIP >= 50% that overlap predicted enhancers) / (fraction of all 1000G SNPs that overlap predicted enhancers). We define **recall (linking)** as as the fraction of eVariant-eGene pairs overlapping a predicted enhancer linked to the correct eGenes, and **recall (total)** as the fraction of eVariant-eGene pairs with the eVariant overlapping predicted a enhancer.
 
+<hr>
+
 ## Outputs
 Running this pipeline will produce the following plots and corresponding tables, many of which are also included in a summary HTML report (`results/benchmarkingReport.html`). 
 1. To compare comprehensively compare performance across predictors, we plot the enrichment and recall for user-specified eQTL biosample, prediction biosample matches, where predicted enhancers are defined as enhancer-gene links with a score greater than the provided threshold value.
@@ -19,6 +21,24 @@ Running this pipeline will produce the following plots and corresponding tables,
 	- `results/plots.enrichmentRecall/enrichmentRecall.GTExTissueAllMatches.pdf`: Enrichment-recall curve as above where values are aggregated across all specified biosample matches for each predictor. Enrichment and recall are both aggregated by summing variant overlap counts across each biosample match before computing the metric.
 	- `results/plots/normalizedEnrichmentRecall/normalizedEnrichmentRecall.GTExTissue{tissue}.pdf` (and `.tsv`), one per eQTL tissue plus `AllMatches`: enrichment-recall curves with enrichment divided by the enrichment of the model's own candidate universe (every element-gene pair the model scored, no score cutoff; as in the candidate-universe heatmaps). 1 (dashed line) = no better than calling every candidate, so the y-axis is the improvement the model's ranking adds over its universe; this makes models with differently enriched universes, and pairings with different universe enrichment, comparable. Thick lines pool counts over the tissue's pairings (all pairings for `AllMatches`) and divide by the universe enrichment pooled over the same pairings; faint lines are single pairings divided by their own universe enrichment. The dot with a bar is the configured threshold; its CI is the enrichment CI divided by the universe enrichment. The table has the pooled and per-pairing values (`level`), including the raw and universe enrichment.
 	- `results/plots/enrichmentAtRecall/enrichmentAtRecall{recall}.GTExTissue{tissue}.pdf`: For user-specified recall (linking) values, a plot is generated for each eQTL biosample with at least one predictor biosample designated match. Each predictor biosample match is only included in the plot if they acheive a recall (linking) within 0.02 of the desired value; the exact recall corresponding to the threshold at which enrichment is plotted is shown in the legend. We calculate Bonferroni-adjusted p-values between all pairwise comparisons of included predictors using the approach of [comparing relative risks](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1125071/). Pairs with significant differences are not indicated on the plot because algorithimically calculating the y-position of the required bars is confusing. If fewer than two predictor biosample matches meet the designated recall, empty placeholder files are created. 
+
+<hr>
+
+## System requirements
+
+### Hardware requirements
+
+For optimal performance, we suggest using a computer equipped with 32+ GB RAM to run this pipeline.
+
+### Software requirements
+
+This pipeline has been successfully tested with Linux systems.
+
+The software dependencies and versions to run the pipeline are: `python<=3.11`, `mamba=1.5.11`, `snakemake=7`
+
+All software dependencies and versions used within the pipeline are listed in `workflow/envs/eQTLEnv.yml`. 
+
+<hr>
 
 ## Running the pipeline
 1. Clone this repository
@@ -44,10 +64,12 @@ python workflow/IGVF_prediction_validation/make_prediction_config.py \
    launching. This step is deliberately manual: a single wrong cell silently removes
    a method from the benchmark.
 6. Edit the main config file to point at your predictions table and methods table (see below)
-7. Run pipeline
+7. Run the pipeline as follows. Depending on the number of predictors and cell types being benchmarked, the workflow should complete in 2–6 hours.
 ```
 snakemake -j1 --configfile config/config_example.yml --use-conda
 ```
+
+<hr>
 
 ## Claude Code skill (`eqtl-benchmark-runner`)
 A [Claude Code](https://docs.claude.com/en/docs/claude-code) skill for running, extending and interpreting this pipeline lives on the `skills` branch of [kaybrand/eQTLEnrichment](https://github.com/kaybrand/eQTLEnrichment), at `skills/eqtl-benchmark-runner/SKILL.md`. That branch holds only skills and is never merged into a code branch, so one copy serves every branch and checkout. You do not need any existing worktrees to use it.
@@ -97,6 +119,8 @@ warn you. Check in particular that every cell points at a file belonging to the 
 biosample *and* the right method — a cell pasted into the wrong column is what caused
 the 2025-10-19 run to lose all of one method's enrichment tables.
 
+<hr>
+
 ## Config files
 
 **Config checks.** When the pipeline starts (including `snakemake -n`), it checks the three config files and every prediction file's header, and stops with a numbered list of all problems before running any job. It checks: each listed method has a methods-table row and a predictions-table column; thresholds are numbers or blank; `boolean`, `inverse_predictor` and `nonneg_only` are `TRUE`/`FALSE`; a `boolean` predictor's threshold is 1; `geneUniverse` files and prediction files exist; each prediction file has `ElementChr`, `ElementStart`, `ElementEnd`, `GeneSymbol` and its `score_col`; biosample names are unique; and each method has at least one biosample paired with an eQTL tissue. Whether a threshold keeps any links can only be known by reading the whole file, so that check runs in `process_predictions`, one of the first jobs, which stops with the observed score range if no link passes (skipped for methods with no threshold).
@@ -134,6 +158,8 @@ The pipeline requires three config files. The required inputs are outlined below
    - **The column name must match the `method` value exactly.** The pipeline stops at startup if a listed method has no matching column.
    - Biosample names must be unique. Prefer the `{dataset}_{biosample}` IDs produced by `make_prediction_config.py`: several biosample folder names recur across datasets.
 
+<hr>
+
 ## Known limitations
 
 ### Pooled statistics treat matched pairs as independent
@@ -144,9 +170,25 @@ The "AllMatches" results and the pooled per-tissue curves in the enrichment-reca
 
 These formulas treat the summed counts as independent draws, and they are not. A tissue matched to k biosamples contributes the same eVariants k times. The same background SNPs are reused in every pair. Related biosamples share many enhancers, and eQTL tissues share eVariants. The effective sample size is therefore smaller than the summed counts, so pooled CIs are too narrow and pooled p-values too small. The pooled point estimates themselves are unaffected. Models scored on the same variants also give correlated estimates, which the model-to-model z-test ignores. Read pooled error bars and p-values as optimistic until this is resolved.
 
+<hr>
+
 ## Works-in-progress
 - Edit terminology in configuration, code, file names to not be specific to GTEx (replace "GTEx tissue" with "eQTL biosample")
 - Implement benchmarking of groups of prediction biosamples against a single eQTL biosamples to better map to hetergenous tissues
 - Integrate computations from enrichment and recall into a single function
 - Implement baseline predictors computed internally (e.g. distance to TSS, random expressed gene with 500kb)
 - Review/improve the "enrichment at recall" analysis
+
+<hr>
+
+### License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### Citation
+
+If you use this pipeline in your research, please cite the preprints in which it was developed: [ENCODE-rE2G preprint](https://www.biorxiv.org/content/10.1101/2023.11.09.563812v1), [scE2G preprint](https://www.biorxiv.org/content/10.1101/2024.11.23.624931v1)
+
+### Support
+
+For questions and issues, please use the [GitHub Issues](https://github.com/EngreitzLab/eQTLEnrichment/issues) page.
