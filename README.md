@@ -49,6 +49,38 @@ python workflow/IGVF_prediction_validation/make_prediction_config.py \
 snakemake -j1 --configfile config/config_example.yml --use-conda
 ```
 
+## Claude Code skill (`eqtl-benchmark-runner`)
+A [Claude Code](https://docs.claude.com/en/docs/claude-code) skill for running, extending and interpreting this pipeline lives on the `skills` branch of [kaybrand/eQTLEnrichment](https://github.com/kaybrand/eQTLEnrichment), at `skills/eqtl-benchmark-runner/SKILL.md`. That branch holds only skills and is never merged into a code branch, so one copy serves every branch and checkout. You do not need any existing worktrees to use it.
+
+1. **Get the `skills` branch into its own directory.**
+   - No existing clone: clone just that branch (a few files, under 100 KB):
+   ```
+   git clone --branch skills --single-branch git@github.com:kaybrand/eQTLEnrichment.git eQTLEnrichment-skills
+   ```
+   - Already have a clone of the fork: add it as a worktree instead, which reuses the clone's history:
+   ```
+   git fetch origin skills
+   git worktree add ../eQTLEnrichment-skills skills
+   ```
+   Never check out a different branch in this directory; Claude reads the skill from it.
+2. **Make Claude Code load it.** Pick one route; using two loads the skill twice.
+   - As its own plugin: start Claude with `--plugin-dir`, which can be repeated next to other plugins. The skill appears as `eQTLEnrichment-skills:eqtl-benchmark-runner`.
+   ```
+   claude --plugin-dir /path/to/eQTLEnrichment-skills
+   ```
+   - Through a local checkout of the lab's EngreitzLabAgents plugin: add a symlink and keep it out of that repo's git with a local-only exclude. Do not commit it to EngreitzLabAgents. The skill appears as `EngreitzLabAgents:eqtl-benchmark-runner`.
+   ```
+   cd /path/to/EngreitzLabAgents
+   ln -s /path/to/eQTLEnrichment-skills/skills/eqtl-benchmark-runner skills/eqtl-benchmark-runner
+   echo "/skills/eqtl-benchmark-runner" >> .git/info/exclude
+   ```
+   - As a personal skill, available in every session: symlink it into your Claude skills folder (`~/.claude/skills/`, or `$CLAUDE_CONFIG_DIR/skills/` if you set one).
+   ```
+   ln -s /path/to/eQTLEnrichment-skills/skills/eqtl-benchmark-runner ~/.claude/skills/eqtl-benchmark-runner
+   ```
+3. **Check:** start a new Claude session and run `/skills`; `eqtl-benchmark-runner` should be listed.
+4. **Updates:** `git pull` in `eQTLEnrichment-skills/` to get changes. Make edits there too, and commit and push them on the `skills` branch.
+
 ## Prediction file format validation
 Use the IGVF_prediction_validation package to verify and correct the format of predictions in the predictions configuration table before feeding it to the eQTL pipeline.
 For models not already represented by the pgBoostValidator, SCARlinkValidator, AbsCorrelationValidator, scE2GValidator, or DefaultValidator, define your own class inheriting from the BaseValidator abstract class.
